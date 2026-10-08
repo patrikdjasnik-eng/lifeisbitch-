@@ -1,6 +1,6 @@
 {
   "name": "life-is-bitch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Street Life: Betonové sny — offline game",
   "author": "Rabbit Hollow",
   "license": "UNLICENSED",
@@ -8,7 +8,8 @@
   "scripts": {
     "desktop:start": "electron .",
     "desktop:smoke": "electron . --smoke",
-    "desktop:build": "electron-builder --win nsis portable --x64 --publish never"
+    "desktop:build": "electron-builder --win nsis portable --x64 --publish never",
+    "test": "node tests/gameplay.cjs"
   },
   "devDependencies": {
     "electron": "44.7.0",

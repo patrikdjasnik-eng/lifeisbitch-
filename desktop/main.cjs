@@ -56,9 +56,24 @@ async function createWindow() {
         renderer: !!window.streetLifeRenderer
       }), 3000);
     })`);
+    result.services = await gameWindow.webContents.executeJavaScript(`new Promise(resolve => {
+      const shop = buildings.find(b => b.name === 'ŘEZNICTVÍ');
+      enterBuilding(shop);
+      const point = butcherPoint(); player.x = point.x; player.y = point.y;
+      player.cash = 100; player.health = 40;
+      showButcherShop();
+      setTimeout(() => {
+        const bought = buyButcherProduct('roll') && player.cash === 55 && player.health === 48;
+        const exit = interiorPoints().exit; player.x = exit.x; player.y = exit.y; useInterior();
+        const stop = transitStops[0]; player.x = stop.x; player.y = stop.y;
+        showTransitMenu(stop);
+        const rode = rideTransit(1) && player.cash === 15;
+        resolve(bought && rode);
+      }, 500);
+    })`);
     log('Desktop smoke: ' + JSON.stringify(result));
     console.log('Desktop smoke:', JSON.stringify(result));
-    app.exit(result.scene && result.started && result.canvas ? 0 : 1);
+    app.exit(result.scene && result.started && result.canvas && result.services ? 0 : 1);
   }
 }
 

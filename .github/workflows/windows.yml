@@ -21,6 +21,8 @@ jobs:
           node --check desktop/main.cjs
           node --check web/game.js
           node --check web/renderer3d.js
+      - name: Test purchases and public transit
+        run: npm test
       - name: Test game launch
         run: npm run desktop:smoke
       - name: Build installer
