@@ -22,3 +22,14 @@ Electron obaluje současný webový prototyp. Hra se načítá z lokálních sou
 GitHub Actions → Windows EXE → artifact life-is-bitch-windows obsahuje instalační EXE pro Windows x64. Instalátor není podepsaný vydavatelským certifikátem. CI ověřuje spuštění hry i vytvoření balíčku; výkon na hráčově PC se ověřuje zvlášť.
 
 Lokální vývoj: Node.js 22, npm install, npm run desktop:start. Sestavení na Windows: npm run desktop:build.
+
+## 2026-10-09 · Životní systémy / Life systems
+
+- Ubytovna: postel 150 herních Kč na noc, spánek +40 zdraví, posun dne. Domov odemyká pokoj za 450 herních Kč.
+- Potraviny a obchodní centra: jídlo, voda a lékárnička s cenami a doplněním zdraví.
+- Banka: bezplatný účet, hotovostní vklady/výběry, úvěr 1 000 Kč s pevnou 10% cenou a splatností 7 dní, částečné splácení. Finance odemyká úvěr 5 000 Kč a mobilní banku.
+- Telefon P / tlačítko: herní SMS NPC (5 Kč, jedna denně), historie, tarifní účty 80 Kč každé 3 herní dny, splatnost a úhrada. Kontakty odemykají další NPC. Premium spojuje všechny tři balíčky.
+- Den běží 5 minut aktivního hraní; v menu a pauze stojí. Stav součástí původního save, staré savy získají výchozí životní stav.
+- Balíčky jsou konfigurační příprava, žádný checkout ani skutečné placené licence. `lifeEntitlements` je prázdné: lokální konfigurace není bezpečné ověření nákupu. Před prodejem doplnit backend/store ověření, ceny a finální rozsah. Online Premium z dřívějšího plánu zůstává budoucí funkcí.
+- EN: Added hostel rental/sleep, grocery shopping, bank accounts/transfers/loans, recurring bills and NPC SMS with persistence. Optional housing/finance/social bundles and Premium are configuration scaffolding only; purchases and online mode are not implemented.
+- Validation: `npm test`, bank/rental/bill/SMS edge cases, saves, service entrances/floors. Desktop installer not rebuilt in this change.
