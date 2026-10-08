@@ -27,6 +27,27 @@ jobs:
         run: npm run desktop:build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Install and test packaged game and desktop shortcut
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem windows-dist/*Setup*.exe | Select-Object -First 1
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\LifeIsBitchBeta'
+          $desktop = [Environment]::GetFolderPath('Desktop')
+          New-Item -ItemType Directory -Force -Path $desktop | Out-Null
+          $installer = Start-Process $setup.FullName -ArgumentList '/S', "/D=$installDir" -PassThru
+          if (-not $installer.WaitForExit(120000)) { $installer.Kill(); throw 'Installer timeout' }
+          if ($installer.ExitCode -ne 0) { throw "Installer exit: $($installer.ExitCode)" }
+          $exe = Join-Path $installDir 'Life Is Bitch.exe'
+          if (-not (Test-Path $exe)) { throw 'Installed EXE missing' }
+          $shortcutPath = Join-Path $desktop 'Life Is Bitch.lnk'
+          if (-not (Test-Path $shortcutPath)) { throw 'Desktop shortcut missing' }
+          $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+          if ($shortcut.TargetPath -ne $exe) { throw "Shortcut target: $($shortcut.TargetPath)" }
+          $game = Start-Process $exe -ArgumentList '--smoke' -PassThru
+          if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
+          Get-Content "$env:APPDATA\life-is-bitch\startup.log" -ErrorAction SilentlyContinue
+          if ($game.ExitCode -ne 0) { throw "Installed game exit: $($game.ExitCode)" }
+          Write-Output 'PASS: silent install, desktop shortcut target, installed game launch'
       - uses: actions/upload-artifact@v4
         with:
           name: life-is-bitch-windows

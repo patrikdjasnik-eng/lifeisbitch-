@@ -5,6 +5,12 @@ const { pathToFileURL } = require('node:url');
 protocol.registerSchemesAsPrivileged([{ scheme: 'game', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const smoke = process.argv.includes('--smoke');
 let gameWindow;
+const fs = require('node:fs');
+function log(message) {
+  try { const folder = app.getPath('userData'); fs.mkdirSync(folder, { recursive: true }); fs.appendFileSync(path.join(folder, 'startup.log'), new Date().toISOString() + ' ' + message + '\n'); } catch (error) { console.error(error); }
+}
+if (process.argv.includes('--safe-mode')) app.disableHardwareAcceleration();
+process.on('uncaughtException', error => { log(error.stack || error.message); if (!smoke) dialog.showErrorBox('Life Is Bitch — chyba', error.message); app.exit(1); });
 
 function assetPath(url) {
   const request = new URL(url);
@@ -20,7 +26,7 @@ async function createWindow() {
   gameWindow = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
     title: 'Life Is Bitch · Betonové sny', backgroundColor: '#080c11',
-    show: false, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'),
+    show: true, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'),
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
   });
   gameWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -36,6 +42,8 @@ async function createWindow() {
   gameWindow.on('blur', () => {
     gameWindow.webContents.executeJavaScript("if(typeof started !== 'undefined' && started && !paused && !dialogOpen) document.getElementById('pause').click();").catch(console.error);
   });
+  gameWindow.webContents.on('render-process-gone', (_, details) => { log('Renderer stopped: ' + JSON.stringify(details)); if (!smoke) dialog.showErrorBox('Grafika hry se zastavila', 'Zkus spustit hru s parametrem --safe-mode.'); });
+  log('Loading game; packaged=' + app.isPackaged);
   await gameWindow.loadURL('game://local/index.html');
   gameWindow.show();
   if (smoke) {
@@ -48,6 +56,7 @@ async function createWindow() {
         renderer: !!window.streetLifeRenderer
       }), 3000);
     })`);
+    log('Desktop smoke: ' + JSON.stringify(result));
     console.log('Desktop smoke:', JSON.stringify(result));
     app.exit(result.scene && result.started && result.canvas ? 0 : 1);
   }
@@ -60,6 +69,7 @@ app.whenReady().then(async () => {
   });
   await createWindow();
 }).catch(error => {
+  log(error.stack || error.message);
   console.error(error);
   if (!smoke) dialog.showErrorBox('Hru nelze spustit', error.message);
   app.exit(1);
