@@ -8,7 +8,7 @@
   "scripts": {
     "desktop:start": "electron .",
     "desktop:smoke": "electron . --smoke",
-    "desktop:build": "electron-builder --win nsis --x64"
+    "desktop:build": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "44.7.0",
@@ -34,14 +34,18 @@
           ]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": true,
+      "icon": "desktop/icon-beta.ico"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "desktop/icon-beta.ico",
+      "uninstallerIcon": "desktop/icon-beta.ico",
+      "installerHeaderIcon": "desktop/icon-beta.ico"
     },
     "artifactName": "Life-Is-Bitch-Setup-${version}.${ext}"
   }

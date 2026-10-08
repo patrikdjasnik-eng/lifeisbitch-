@@ -20,7 +20,7 @@ async function createWindow() {
   gameWindow = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
     title: 'Life Is Bitch · Betonové sny', backgroundColor: '#080c11',
-    show: false, autoHideMenuBar: true,
+    show: false, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'),
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
   });
   gameWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
