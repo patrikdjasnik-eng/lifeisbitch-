@@ -8,3 +8,48 @@
 #world3d{position:fixed;inset:0;z-index:1;width:100vw;height:100vh}#game{position:fixed;inset:0;z-index:2}.vignette{z-index:3}header,.mission,#location,#prompt,#toast,footer,.touch{z-index:5}.overlay{z-index:10}.brand em{font-style:normal;color:#c5f46b}
 
 @media (pointer:coarse){.touch{display:flex;flex-wrap:wrap;max-width:340px;gap:6px;touch-action:none}.touch button{min-width:46px;min-height:46px}footer{display:none}body{overscroll-behavior:none}header{padding-top:env(safe-area-inset-top)}}
+
+:root {
+  --streetText: #cf390d;
+  --streetAction: #d00068;
+}
+body { color: var(--streetText); }
+.brand, .brand span, .brand em, .eyebrow, .stats span, .stats b, #heat,
+.mission p, .objective > span:first-child, .objective b, .xpLine,
+.cargoLine, .cargoLine b, #location span, .intro h1 i, .intro p,
+.intro .tagline, .intro small, .introSide > span, .introSide p {
+  color: var(--streetText);
+}
+.stats {
+  background: transparent;
+  border-color: var(--streetText);
+  backdrop-filter: none;
+}
+.mission {
+  background: transparent;
+  border-left-color: var(--streetText);
+  pointer-events: none;
+}
+.mission button { pointer-events: auto; }
+.objective { border-top-color: #cf390d55; }
+#menu { background: transparent; }
+.introSide { border-left-color: var(--streetText); }
+.intro button, #contracts, #phone {
+  background: transparent;
+  color: var(--streetAction);
+  border: 1px solid transparent;
+}
+#phone { width: 100%; }
+.intro button:hover, #contracts:hover, #phone:hover {
+  border-color: var(--streetAction);
+  background: #d0006810;
+}
+button:focus-visible { outline: 2px solid var(--streetAction); outline-offset: 3px; }
+button:disabled { cursor: default; opacity: .45; }
+#pause, footer button { color: var(--streetAction); border-color: #d0006866; }
+footer { color: var(--streetText); }
+kbd { color: var(--streetText); background: transparent; }
+.xpTrack i { background: var(--streetText); }
+body:has(#menu:not(.hidden)) .mission { visibility: hidden; }
+.dialogBox { color: #f4f3ef; border-top-color: var(--streetText); }
+.dialogBox .eyebrow { color: #f16b3f; }

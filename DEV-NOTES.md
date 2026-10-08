@@ -33,3 +33,7 @@ Lokální vývoj: Node.js 22, npm install, npm run desktop:start. Sestavení na 
 - Balíčky jsou konfigurační příprava, žádný checkout ani skutečné placené licence. `lifeEntitlements` je prázdné: lokální konfigurace není bezpečné ověření nákupu. Před prodejem doplnit backend/store ověření, ceny a finální rozsah. Online Premium z dřívějšího plánu zůstává budoucí funkcí.
 - EN: Added hostel rental/sleep, grocery shopping, bank accounts/transfers/loans, recurring bills and NPC SMS with persistence. Optional housing/finance/social bundles and Premium are configuration scaffolding only; purchases and online mode are not implemented.
 - Validation: `npm test`, bank/rental/bill/SMS edge cases, saves, service entrances/floors. Desktop installer not rebuilt in this change.
+
+## 2026-10-09 · Textový design / Typography
+
+Oranžové písmo a růžové akce podle vybraného náhledu. Pozadí textu v úvodním menu a HUD jsou průhledná; mise se při otevřeném menu skryje, aby se nepřekrývala s titulkem. Dialogy služeb mají čitelnou vlastní plochu. ImageGen použit pro vizuální předlohu, živé UI implementované v CSS. / Orange typography, magenta actions and transparent menu/HUD backgrounds; hide mission HUD behind the start menu.
