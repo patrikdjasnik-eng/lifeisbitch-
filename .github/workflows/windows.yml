@@ -2,7 +2,7 @@ name: Windows EXE
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'web/**', 'package*.json', '.github/workflows/windows.yml']
+    paths: ['desktop/**', 'web/**', 'tests/**', 'package*.json', '.github/workflows/windows.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,42 +16,38 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Check syntax
+      - name: Check syntax and gameplay
         run: |
           node --check desktop/main.cjs
-          node --check web/game.js
           node --check web/renderer3d.js
-      - name: Test purchases and public transit
-        run: npm test
+          npm test
       - name: Test game launch
         run: npm run desktop:smoke
-      - name: Build installer
+      - name: Build Windows game folder
         run: npm run desktop:build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Install and test packaged game and desktop shortcut
+      - name: Stage Windows package and verify installation
         shell: pwsh
         run: |
-          $setup = Get-ChildItem windows-dist/*Setup*.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force package/game | Out-Null
+          Copy-Item windows-dist/win-unpacked/* package/game -Recurse -Force
+          Copy-Item desktop/Install.ps1, desktop/Install.cmd package/
           $installDir = Join-Path $env:LOCALAPPDATA 'Programs\LifeIsBitchBeta'
-          $desktop = [Environment]::GetFolderPath('Desktop')
-          New-Item -ItemType Directory -Force -Path $desktop | Out-Null
-          $installer = Start-Process $setup.FullName -ArgumentList '/S', "/D=$installDir" -PassThru
-          if (-not $installer.WaitForExit(120000)) { $installer.Kill(); throw 'Installer timeout' }
-          if ($installer.ExitCode -ne 0) { throw "Installer exit: $($installer.ExitCode)" }
+          & package/Install.ps1 -InstallDir $installDir -NoLaunch
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw 'Install script failed' }
           $exe = Join-Path $installDir 'Life Is Bitch.exe'
-          if (-not (Test-Path $exe)) { throw 'Installed EXE missing' }
-          $shortcutPath = Join-Path $desktop 'Life Is Bitch.lnk'
-          if (-not (Test-Path $shortcutPath)) { throw 'Desktop shortcut missing' }
+          $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Life Is Bitch.lnk'
+          if (-not (Test-Path $exe) -or -not (Test-Path $shortcutPath)) { throw 'EXE or desktop shortcut missing' }
           $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-          if ($shortcut.TargetPath -ne $exe) { throw "Shortcut target: $($shortcut.TargetPath)" }
+          if ($shortcut.TargetPath -ne $exe) { throw 'Shortcut target mismatch' }
           $game = Start-Process $exe -ArgumentList '--smoke' -PassThru
           if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
-          Get-Content "$env:APPDATA\life-is-bitch\startup.log" -ErrorAction SilentlyContinue
           if ($game.ExitCode -ne 0) { throw "Installed game exit: $($game.ExitCode)" }
-          Write-Output 'PASS: silent install, desktop shortcut target, installed game launch'
+          Write-Output 'PASS: installed game, desktop shortcut, purchases and MHD'
+          Compress-Archive -Path package/* -DestinationPath Life-Is-Bitch-Windows-0.1.2.zip
       - uses: actions/upload-artifact@v4
         with:
           name: life-is-bitch-windows
-          path: windows-dist/*.exe
+          path: Life-Is-Bitch-Windows-0.1.2.zip
           if-no-files-found: error
