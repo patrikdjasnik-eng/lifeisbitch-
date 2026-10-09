@@ -143,7 +143,7 @@ async function createLauncher() {
       if (!launcherWindow?.isDestroyed()) launcherWindow.webContents.send('launcher:status', { text, progress, busy, version });
     };
     try {
-      const result = await updater.update(folder, report);
+      const result = await updater.update(folder, report, undefined, 'feat/street-life-gunshop');
       gameRoot = result.root;
       report('Hra je připravená.', 100, false, result.sha.slice(0, 7));
     } catch (error) {
