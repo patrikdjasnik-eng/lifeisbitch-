@@ -153,7 +153,51 @@ function doorFor(b){return {x:b.x+b.w/2,y:b.y+b.h+12}}
 function nearestDoor(){let nearest=null,best=42;for(const b of nearbyBuildings(player.x,player.y,100)){const door=doorFor(b),d=distance(player,door);if(d<best&&!collision(door.x,door.y,10)){nearest=b;best=d}}return nearest}
 function interiorFurniture(){if(!interior)return [];return [{x:interior.width*.18,y:interior.depth*.45,w:interior.width*.22,h:interior.depth*.12},{x:interior.width*.16,y:interior.depth*.7,w:interior.width*.25,h:interior.depth*.12}]}
 function interiorCollision(x,y,r){return x<r+4||y<r+4||x>interior.width-r-4||y>interior.depth-r-4||interiorFurniture().some(item=>x+r>item.x&&x-r<item.x+item.w&&y+r>item.y&&y-r<item.y+item.h)}
-function enterBuilding(b){if(player.car){notify('Nejdřív vystup z auta.');return;}interior={building:b,width:b.w,depth:b.h,floor:0,maxFloor:Math.max(1,Math.min(5,Math.floor(b.height/6))),outside:{x:player.x,y:player.y,angle:player.angle}};player.x=interior.width/2;player.y=interior.depth-22;camera.x=player.x;camera.y=player.y;updateHud();notify('Vstup: '+(b.name||'činžovní dům')+' · E u schodiště / dveří');}
+const interiorStaff = {
+  'POTRAVINY': [['JANA', 'Prodavačka', '#b06e77'], ['ZÁKAZNÍK', 'Nakupující', '#637a98']],
+  'POLICIE ČR': [['STRŽM. NOVÁK', 'Policista', '#294d85'], ['POR. VESELÁ', 'Policistka', '#294d85'], ['OBČAN', 'Návštěvník', '#877c68']],
+  'BANKA': [['TEREZA', 'Bankéřka', '#536d86'], ['OCHRANKA', 'Ostraha', '#344962']],
+  'UBYTOVNA': [['SPRÁVCE', 'Recepční', '#826e59'], ['HOST', 'Ubytovaný', '#677f71']],
+  'GUNSHOP': [['MAREK', 'Prodejce', '#98765e']],
+  'ŘEZNICTVÍ': [['KAREL', 'Řezník', '#d5c9b8']],
+  'OBCHODNÍ CENTRUM': [['SÁRA', 'Prodavačka', '#b17880'], ['ZÁKAZNÍK', 'Nakupující', '#748b99']],
+  'ÚŘAD PRÁCE': [['REFERENTKA', 'Úřednice', '#7b7398'], ['UCHAZEČ', 'Návštěvník', '#877a62']],
+  'ZÁKLADNÍ ŠKOLA': [['UČITELKA', 'Pedagožka', '#8b7392'], ['ŠKOLNÍK', 'Personál', '#687f72']],
+  'GYMNÁZIUM VINOHRADY': [['UČITEL', 'Pedagog', '#657d91'], ['STUDENT', 'Student', '#9b786b']],
+  'CENTRUM VINOHRADY': [['EVA', 'Prodavačka', '#956985'], ['ZÁKAZNÍK', 'Nakupující', '#647d90']]
+};
+function createInteriorNpcs(building, floor = 0) {
+  if (floor !== 0) return [];
+  const staff = interiorStaff[building.name] || (building.name ? [['MÍSTNÍ', 'Obyvatel', '#71818a']] : [['SOUSED', 'Obyvatel', '#71818a']]);
+  return staff.map(([name, role, color], index) => ({
+    name, role, color,
+    x: building.w * (index === 0 ? .29 : index === 1 ? .71 : .44),
+    y: building.h * (index === 0 ? .35 : index === 1 ? .35 : .24),
+    angle: Math.PI / 2
+  }));
+}
+function nearbyInteriorNpc() {
+  if (!interior || interior.floor !== 0) return null;
+  return interior.npcs.find(npc => distance(player, npc) < 27) || null;
+}
+function talkToInteriorNpc(npc) {
+  dialogOpen = true;
+  keys.clear();
+  $('dialog').classList.remove('hidden');
+  $('speaker').textContent = npc.name + ' · ' + npc.role;
+  $('dialogTitle').textContent = 'Rozhovor';
+  $('dialogText').textContent = interior.building.name === 'POLICIE ČR'
+    ? 'Dobrý den. Na služebně vám můžeme poskytnout informace. Dodržujte prosím pořádek.'
+    : interior.building.name === 'ÚŘAD PRÁCE'
+      ? 'Dobrý den. Informace o práci najdete u přepážky.'
+      : 'Zdravím! Vítejte u nás. Můžete se tu porozhlédnout.';
+  $('choices').replaceChildren();
+  const close = document.createElement('button');
+  close.textContent = 'Ukončit rozhovor';
+  close.onclick = closeContracts;
+  $('choices').append(close);
+}
+function enterBuilding(b){if(player.car){notify('Nejdřív vystup z auta.');return;}interior={building:b,width:b.w,depth:b.h,floor:0,maxFloor:Math.max(1,Math.min(5,Math.floor(b.height/6))),outside:{x:player.x,y:player.y,angle:player.angle},npcs:createInteriorNpcs(b)};player.x=interior.width/2;player.y=interior.depth-22;camera.x=player.x;camera.y=player.y;updateHud();notify('Vstup: '+(b.name||'činžovní dům')+' · E u schodiště / dveří');}
 function interiorPoints(){return {up:{x:interior.width-22,y:interior.depth*.2},down:{x:interior.width-22,y:interior.depth*.42},exit:{x:interior.width/2,y:interior.depth-15}}}
 const butcherProducts = [
   { id: 'roll', name: 'Rohlík se šunkou', price: 45, health: 8 },
@@ -372,8 +416,8 @@ function buyButcherProduct(id) {
   notify('Koupeno: ' + item.name + ' · −' + item.price + ' Kč · zdraví ' + Math.round(player.health) + '/100');
   return true;
 }
-function useInterior(){if(isGunshopRoom()&&distance(player,gunshopPoint())<=45){showGunshop();return;}if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){const outside=interior.outside;interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;updateHud();notify('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
-function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';if(isGunshopRoom()){$('missionText').textContent='GUNSHOP · 3 zbraně na blízko a 4 pistole. E u pultu pro nákup.';if(distance(player,gunshopPoint())<=45)$('prompt').textContent='[E] GUNSHOP · nakoupit';}if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
+function useInterior(){if(isGunshopRoom()&&distance(player,gunshopPoint())<=45){showGunshop();return;}if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const npc=nearbyInteriorNpc();if(npc){talkToInteriorNpc(npc);return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){const outside=interior.outside;interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;updateHud();notify('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;interior.npcs=createInteriorNpcs(interior.building,interior.floor);player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;interior.npcs=createInteriorNpcs(interior.building,interior.floor);player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
+function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';const npc=nearbyInteriorNpc();if(npc)$('prompt').textContent='[E] Promluvit · '+npc.name;if(isGunshopRoom()){$('missionText').textContent='GUNSHOP · 3 zbraně na blízko a 4 pistole. E u pultu pro nákup.';if(distance(player,gunshopPoint())<=45)$('prompt').textContent='[E] GUNSHOP · nakoupit';}if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
 function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeContract)completeContract();else showDialog();return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
 
 function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
@@ -777,7 +821,7 @@ function render(){
     if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
   }catch(error){console.error('3D frame failed',error);window.streetLifeRenderer=null;document.querySelector('#world3d')?.remove();$('renderMode').textContent='2D';notify('3D vykreslování selhalo. Pokračuje 2D verze.');renderLegacy();}
 }
-function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isGunshopRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#b48b63',0,false);ctx.fillStyle='#f4ad58';ctx.font='bold 10px Arial';ctx.fillText('GUNSHOP',interior.width*.12,interior.depth*.3);}if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
+function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');for(const npc of interior.npcs){drawPerson(npc.x,npc.y,npc.angle,npc.color,Math.sin(time*2),false);ctx.font='bold 8px Arial';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(npc.name,npc.x,npc.y-17);}ctx.textAlign='left';const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
 function isLifeService() {
   return Boolean(interior && interior.floor === 0 && ['UBYTOVNA', 'BANKA', 'POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(interior.building.name));
 }
