@@ -65,7 +65,7 @@ vm.runInContext(`
 interior=null;started=true;paused=false;dialogOpen=false;player.car=null;complete=true;activeContract=null;careerState=careerSystem.create();player.xp=10000;
 for(const q of Object.values(careerSystem.catalog).flat())for(const stage of q.stages)if(collision(stage.x,stage.y,10))throw Error('Blocked career objective: '+q.id);
 openCareer('worker');if(!acceptCareer('worker'))throw Error('Career acceptance');
-if(acceptContract('cannabis'))throw Error('Concurrent repeatable contract');
+if(acceptContract('herb'))throw Error('Concurrent repeatable contract');
 const cashBefore=player.cash,xpBefore=player.xp;let stale;
 for(let step=0;step<3;step++){
  const t=mission();player.x=t.x;player.y=t.y;interact();if(!careerDialogToken)throw Error('Career interaction missing');
