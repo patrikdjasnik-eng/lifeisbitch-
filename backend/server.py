@@ -16,8 +16,15 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 limits = {}
 lock = threading.Lock()
 
+class ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
 def connect():
-    db = sqlite3.connect(DB_PATH, timeout=10)
+    db = sqlite3.connect(DB_PATH, timeout=10, factory=ClosingConnection)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("""CREATE TABLE IF NOT EXISTS players (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL,
