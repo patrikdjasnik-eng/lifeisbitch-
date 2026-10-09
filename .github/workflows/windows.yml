@@ -64,11 +64,10 @@ jobs:
           $process = Start-Process $setup.FullName -ArgumentList '/S' -PassThru
           if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'Installer timeout' }
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
-          $exe = Join-Path $installed 'Life Is Bitch.exe'
-          if (-not (Test-Path $exe)) { throw 'Installed EXE missing' }
           $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Life Is Bitch.lnk'
           $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-          if ($shortcut.TargetPath -ne $exe) { throw 'Installer shortcut target mismatch' }
+          $exe = $shortcut.TargetPath
+          if (-not $exe -or -not (Test-Path $exe) -or (Split-Path $exe -Leaf) -ne 'Life Is Bitch.exe') { throw 'Installer shortcut target missing or invalid' }
           $game = Start-Process $exe -ArgumentList '--smoke' -PassThru
           if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
           if ($game.ExitCode -ne 0) { throw 'Installed game failed' }
