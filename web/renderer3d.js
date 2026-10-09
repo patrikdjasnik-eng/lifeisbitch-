@@ -288,7 +288,7 @@ function setup(){
   environment.mapping=THREE.EquirectangularReflectionMapping;scene.environment=environment;scene.environmentIntensity=.7;
   const ground=cube(scene,pavementMaterial,source.size*unit/2,-.08,source.size*unit/2,source.size*unit,.1,source.size*unit,false);
   ground.receiveShadow=true;
-  marker=addMesh(scene,new THREE.TorusGeometry(1.1,.025,6,36),new THREE.MeshBasicMaterial({color:'#c5f46b'}),0,.25,0,1,1,1,false);marker.rotation.x=-Math.PI/2;
+  marker=addMesh(scene,new THREE.TorusGeometry(1.1,.025,6,36),new THREE.MeshBasicMaterial({color:'#ff6a3d'}),0,.25,0,1,1,1,false);marker.rotation.x=-Math.PI/2;
   playerRing=addMesh(scene,new THREE.RingGeometry(.55,.66,48),new THREE.MeshBasicMaterial({color:'#37d6ff',transparent:true,opacity:.9,depthTest:false,depthWrite:false,side:THREE.DoubleSide}),0,.22,0,1,1,1,false);playerRing.rotation.x=-Math.PI/2;playerRing.renderOrder=8;
   contact=makePerson('#8c5369');
   const playerModel=makePerson('#475568');personModels.set(source.player,playerModel);
@@ -368,3 +368,4 @@ function renderInterior(state){
 }
 function updateCameraSize(){const aspect=innerWidth/innerHeight,span=innerWidth<800?20:28;camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();}
 try{setup();}catch(error){console.error('3D renderer initialization failed',error);window.streetLifeRenderer=null;document.querySelector('#world3d')?.remove();source.onError('3D se nepodařilo načíst. Pokračuje 2D verze.');}
+

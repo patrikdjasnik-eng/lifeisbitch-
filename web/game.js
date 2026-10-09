@@ -487,13 +487,13 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   for(const l of lamps){if(!visible(l.x,l.y,130))continue;glow(l.x,l.y,130,'#ffc27b29');ctx.strokeStyle='#0a1622';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(l.x,l.y+10);ctx.lineTo(l.x-5,l.y-12);ctx.lineTo(l.x+6,l.y-18);ctx.stroke();glow(l.x+6,l.y-18,12,'#fff0bcdf');rounded(l.x+1,l.y-20,10,4,2,'#fff0b9')}
   for(const p of people)if(visible(p.x,p.y,30))drawPerson(p.x,p.y,p.axis?(p.dir>0?0:Math.PI):(p.dir>0?Math.PI/2:-Math.PI/2),p.color,time*7);
   for(const c of cars)if(visible(c.x,c.y,160))drawCar(c);
-  if(targetAvailable()){const m=mission();glow(m.x,m.y,60,'#ae7bfa23');drawPerson(m.x,m.y,-Math.PI/2,'#7c5185');ctx.strokeStyle='#c5f46b';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(m.x,m.y,23+Math.sin(time*3),15,0,0,7);ctx.stroke();ctx.fillStyle='#c5f46b';polygon([[m.x,m.y-29+Math.sin(time*2)*3],[m.x-5,m.y-37+Math.sin(time*2)*3],[m.x+5,m.y-37+Math.sin(time*2)*3]],'#c5f46b');ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText(m.speaker,m.x,m.y-48)}
+  if(targetAvailable()){const m=mission();glow(m.x,m.y,60,'#ae7bfa23');drawPerson(m.x,m.y,-Math.PI/2,'#7c5185');ctx.strokeStyle='#ff6a3d';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(m.x,m.y,23+Math.sin(time*3),15,0,0,7);ctx.stroke();ctx.fillStyle='#ff6a3d';polygon([[m.x,m.y-29+Math.sin(time*2)*3],[m.x-5,m.y-37+Math.sin(time*2)*3],[m.x+5,m.y-37+Math.sin(time*2)*3]],'#ff6a3d');ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText(m.speaker,m.x,m.y-48)}
   if(!player.car){drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ffee';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,15,0,7);ctx.stroke()}
   drawBoundaryFog2d();
   ctx.restore();
   drawDistrictAtmosphere();
   ctx.strokeStyle='#c3e3ff20';ctx.lineWidth=1;ctx.beginPath();const count=Math.min(130,Math.floor(w/9));for(let i=0;i<count;i++){const rx=(i*137.7+time*70)%w,ry=(i*91.3+time*480)%h;ctx.moveTo(rx,ry);ctx.lineTo(rx-4,ry+13)}ctx.stroke();
-  drawMap();if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
+  drawMap();if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#ff6a3d';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
 }
 
 function drawDistrictAtmosphere(){
@@ -510,7 +510,7 @@ function drawMap(){
   for(const area of cityBlocks){rect(area.x*s,area.y*s,block*s,block*s,area.type==='park'?'#365c48':area.type==='modern'?'#2e495a':area.type==='industrial'?'#4c4440':'#2c3840')}
   for(let i=0;i<gridSize;i++){rect(i*block*s,0,52*s,size*s,'#69787f');rect(0,i*block*s,size*s,52*s,'#69787f')}
   for(const b of buildings)rect(b.x*s,b.y*s,b.w*s,b.h*s,'#0d1b28');
-  if(targetAvailable()){ctx.fillStyle='#c5f46b';ctx.beginPath();ctx.arc(mission().x*s,mission().y*s,4,0,7);ctx.fill()}
+  if(targetAvailable()){ctx.fillStyle='#ff6a3d';ctx.beginPath();ctx.arc(mission().x*s,mission().y*s,4,0,7);ctx.fill()}
   for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
   if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO',x,y-17);
@@ -607,10 +607,10 @@ function render(){
   try{
     window.streetLifeRenderer.render({player,camera,time,interior,zoom:viewZoom,target:targetAvailable()?mission():null});
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);if(!interior)drawMap();
-    if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
+    if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#ff6a3d';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
   }catch(error){console.error('3D frame failed',error);window.streetLifeRenderer=null;document.querySelector('#world3d')?.remove();$('renderMode').textContent='2D';notify('3D vykreslování selhalo. Pokračuje 2D verze.');renderLegacy();}
 }
-function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
+function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#ff6a3d77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
 function isLifeService() {
   return Boolean(interior && interior.floor === 0 && ['UBYTOVNA', 'BANKA', 'POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(interior.building.name));
 }
