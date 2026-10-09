@@ -53,3 +53,86 @@ kbd { color: var(--streetText); background: transparent; }
 body:has(#menu:not(.hidden)) .mission { visibility: hidden; }
 .dialogBox { color: #f4f3ef; border-top-color: var(--streetText); }
 .dialogBox .eyebrow { color: #f16b3f; }
+
+/* HUD nechává město viditelné; kontrast textu zajišťuje jemný stín. */
+header, .mission, #location, #prompt, #toast, footer {
+  text-shadow: 0 1px 3px #000, 0 0 8px #000b;
+}
+header { top: 22px; left: 26px; right: 26px; gap: 24px; }
+.stats {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.mission {
+  top: 110px;
+  left: 26px;
+  width: 280px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mission > * { grid-column: 1 / -1; margin: 0; }
+.mission h2 { margin-top: 3px; font-size: 22px; }
+.mission p { line-height: 1.5; font-size: 13px; margin-bottom: 4px; }
+.mission .objective { padding-top: 10px; }
+.mission .xpLine { margin-top: 5px; }
+.mission .cargoLine { margin: 4px 0; }
+.mission #phone, .mission #scoreboardButton { grid-column: auto; }
+.mission button, #prompt, #toast, footer, footer button, #pause {
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.mission button {
+  padding: 8px 4px;
+  font-size: 12px;
+  text-align: left;
+  border: 0;
+  color: var(--streetAction);
+  text-shadow: 0 1px 3px #000, 0 0 8px #000b;
+}
+.mission button:hover { background: transparent; text-decoration: underline; }
+#location { left: 26px; bottom: 100px; }
+#prompt { bottom: 105px; border: 0; padding: 8px 14px; max-width: calc(100vw - 48px); text-align: center; }
+#toast { top: 84px; padding: 8px 16px; max-width: min(500px, 90vw); text-align: center; color: var(--streetText); }
+footer {
+  left: 26px;
+  right: 240px;
+  bottom: 16px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 0;
+}
+footer > span { white-space: nowrap; }
+@media (max-width: 1000px) and (min-width: 801px) {
+  .stats { gap: 12px; }
+  .stats span { letter-spacing: 0; }
+  .mission { width: 245px; }
+  footer { font-size: 10px; gap: 8px 12px; }
+}
+@media (max-width: 800px) {
+  header { top: 14px; left: 14px; right: 14px; gap: 10px; }
+  .stats { max-width: 70%; gap: 8px 12px; padding: 0; }
+  .mission { top: 105px; left: 14px; width: min(220px, 52vw); gap: 7px; }
+  .mission h2 { font-size: 18px; }
+  .mission p { font-size: 11px; line-height: 1.4; }
+  .mission button { font-size: 11px; }
+  #location { left: 14px; bottom: 24px; }
+  #prompt { bottom: 210px; font-size: 12px; }
+  #toast { top: 76px; font-size: 12px; }
+  footer { display: none; }
+}
+@media (max-height: 650px) and (min-width: 801px) {
+  .mission { top: 85px; gap: 6px; }
+  .mission h2 { font-size: 19px; }
+  .mission p { font-size: 12px; }
+  #location { bottom: 80px; }
+}
