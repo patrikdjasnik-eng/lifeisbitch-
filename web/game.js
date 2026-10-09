@@ -172,6 +172,99 @@ const gunshopCatalog = Object.freeze([
   { id: 'heavy', name: 'Těžká pistole', price: 12500 }
 ]);
 const weaponInventory = new Set();
+let equippedWeapon = null;
+let actionMode = false;
+let shotCooldown = 0;
+let shotFlash = 0;
+let aimAngle = 0;
+let hasMouseAim = false;
+const firearmIds = new Set(['pistol9', 'revolver', 'compact', 'heavy']);
+function equipWeapon(id) {
+  if (!weaponInventory.has(id)) return false;
+  equippedWeapon = id;
+  actionMode = true;
+  aimAngle = player.angle;
+  hasMouseAim = false;
+  saveProgress();
+  notify('Akční režim · ' + gunshopCatalog.find(item => item.id === id).name + ' · MEZERNÍK akce');
+  closeContracts();
+  return true;
+}
+function fireWeapon() {
+  if (!started || paused || dialogOpen || player.car || interior || !actionMode || !equippedWeapon || shotCooldown > 0) return false;
+  const firearm = firearmIds.has(equippedWeapon);
+  shotCooldown = firearm ? (equippedWeapon === 'revolver' || equippedWeapon === 'heavy' ? .48 : .22) : .42;
+  shotFlash = .16;
+  player.angle = aimAngle;
+  const range = firearm ? 460 : 42;
+  let hit = null;
+  let best = range;
+  for (const person of people) {
+    const dx = person.x - player.x;
+    const dy = person.y - player.y;
+    const along = dx * Math.cos(aimAngle) + dy * Math.sin(aimAngle);
+    const sideways = Math.abs(dx * Math.sin(aimAngle) - dy * Math.cos(aimAngle));
+    if (along > 12 && along < best && sideways < (firearm ? 14 : 22)) {
+      const steps = Math.max(1, Math.ceil(along / 12));
+      let blocked = false;
+      for (let step = 1; step <= steps; step++) {
+        const t = along * step / steps;
+        if (collision(player.x + Math.cos(aimAngle) * t, player.y + Math.sin(aimAngle) * t, 2)) { blocked = true; break; }
+      }
+      if (!blocked) { best = along; hit = person; }
+    }
+  }
+  if (hit) {
+    hit.x = Math.max(12, Math.min(size - 12, hit.x + Math.cos(aimAngle) * 22));
+    hit.y = Math.max(12, Math.min(size - 12, hit.y + Math.sin(aimAngle) * 22));
+    notify('Zásah · svědek volá policii');
+  } else notify(firearm ? 'Výstřel · policie byla upozorněna' : 'Úder naprázdno');
+  player.heat = Math.min(5, player.heat + (firearm ? 1.25 : hit ? .65 : .1));
+  updateHud();
+  return true;
+}
+function drawActionAim() {
+  if (!started || paused || dialogOpen || interior || player.car || !actionMode || !equippedWeapon) return;
+  const firearm = firearmIds.has(equippedWeapon);
+  const length = firearm ? 160 : 65;
+  const centerX = w / 2;
+  const centerY = h / 2;
+  const endX = centerX + Math.cos(aimAngle) * length;
+  const endY = centerY + Math.sin(aimAngle) * length;
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.strokeStyle = shotFlash > 0 ? '#fff2b0' : '#f4ad58';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([9, 7]);
+  ctx.beginPath();
+  ctx.moveTo(centerX + Math.cos(aimAngle) * 20, centerY + Math.sin(aimAngle) * 20);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#fff2b0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(endX, endY, 9, 0, Math.PI * 2);
+  ctx.moveTo(endX - 14, endY);
+  ctx.lineTo(endX - 5, endY);
+  ctx.moveTo(endX + 5, endY);
+  ctx.lineTo(endX + 14, endY);
+  ctx.stroke();
+  const label = gunshopCatalog.find(item => item.id === equippedWeapon)?.name || 'Výbava';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillStyle = '#fff2b0';
+  ctx.textAlign = 'center';
+  ctx.fillText('ACTION MODE · ' + label + ' · SPACE', centerX, h - 105);
+  ctx.restore();
+}
+canvas.addEventListener('pointermove', event => {
+  if (!actionMode || !started || player.car || interior) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left - rect.width / 2;
+  const y = event.clientY - rect.top - rect.height / 2;
+  if (Math.hypot(x, y) > 12) { aimAngle = Math.atan2(y, x); hasMouseAim = true; }
+});
+
 function isGunshopRoom() { return Boolean(interior && interior.floor === 0 && interior.building.name === 'GUNSHOP'); }
 function gunshopPoint() { return { x: interior.width * .55, y: interior.depth * .52 }; }
 function showGunshop() {
@@ -224,6 +317,16 @@ function showWeaponInventory() {
     const label = document.createElement('p');
     label.textContent = '✓ ' + item.name;
     $('choices').append(label);
+    const equip = document.createElement('button');
+    equip.textContent = item.id === equippedWeapon && actionMode ? 'VYBAVENO · ' + item.name : 'Vybavit · ' + item.name;
+    equip.onclick = () => equipWeapon(item.id);
+    $('choices').append(equip);
+  }
+  if (equippedWeapon) {
+    const holster = document.createElement('button');
+    holster.textContent = 'Schovat zbraň / vypnout Action Mode';
+    holster.onclick = () => { actionMode = false; equippedWeapon = null; saveProgress(); closeContracts(); };
+    $('choices').append(holster);
   }
   const close = document.createElement('button');
   close.textContent = 'Zavřít';
@@ -276,7 +379,7 @@ function interact(){if(!started||paused||dialogOpen)return;if(interior){useInter
 function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
 $('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify('První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
-addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='i')showWeaponInventory();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
+addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='i')showWeaponInventory();if(k===' '&&!player.car){fireWeapon();}if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key)}$('touchE').onclick=interact;$('touchF').onclick=enterCar;
 $('sound').onclick=()=>{try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();sound=!sound;$('sound').textContent='ZVUK: '+(sound?'ZAPNUTO':'VYPNUTO');if(sound){const buffer=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.035;const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();filter.type='lowpass';filter.frequency.value=850;source.buffer=buffer;source.loop=true;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();audio.rainGain=gain}else audio.suspend()}catch{notify('Zvuk není v tomto prohlížeči dostupný.')}};
 function resize(){w=innerWidth;h=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
@@ -333,7 +436,7 @@ function updateDriving(car,input,dt){
   }
 }
 
-function update(dt){time+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}if(!started||paused||dialogOpen)return;lifeState.elapsed+=dt;lifeSaveElapsed+=dt;if(lifeSaveElapsed>=10){lifeSaveElapsed=0;saveProgress();}if(lifeState.elapsed>=300){lifeState.elapsed-=300;lifeSystem.nextDay(lifeState);saveProgress();notify('Den '+lifeState.day+' · zkontroluj účty v telefonu (P)');}const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright');if(player.car){const c=player.car;updateDriving(c,{up,down,left,right,brake:keys.has(' ')},dt);player.x=c.x;player.y=c.y;player.angle=c.angle}else{let dx=right-left,dy=down-up,len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;const speed=keys.has('shift')?155:90;if(!collision(player.x+dx*speed*dt,player.y,10))player.x+=dx*speed*dt;if(!collision(player.x,player.y+dy*speed*dt,10))player.y+=dy*speed*dt;player.angle=Math.atan2(dy,dx);player.step+=dt*12}}
+function update(dt){time+=dt;shotCooldown=Math.max(0,shotCooldown-dt);shotFlash=Math.max(0,shotFlash-dt);if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}if(!started||paused||dialogOpen)return;lifeState.elapsed+=dt;lifeSaveElapsed+=dt;if(lifeSaveElapsed>=10){lifeSaveElapsed=0;saveProgress();}if(lifeState.elapsed>=300){lifeState.elapsed-=300;lifeSystem.nextDay(lifeState);saveProgress();notify('Den '+lifeState.day+' · zkontroluj účty v telefonu (P)');}const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright');if(player.car){const c=player.car;updateDriving(c,{up,down,left,right,brake:keys.has(' ')},dt);player.x=c.x;player.y=c.y;player.angle=c.angle}else{let dx=right-left,dy=down-up,len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;const speed=keys.has('shift')?155:90;if(!collision(player.x+dx*speed*dt,player.y,10))player.x+=dx*speed*dt;if(!collision(player.x,player.y+dy*speed*dt,10))player.y+=dy*speed*dt;if(!actionMode){player.angle=Math.atan2(dy,dx);}else if(!hasMouseAim){aimAngle=Math.atan2(dy,dx);player.angle=aimAngle;}player.step+=dt*12}}
 for(const c of cars){if(interior||c===player.car||c.parked)continue;if(c.transit){updateTransitVehicle(c,dt);continue;}if(c.police&&player.heat>.5&&distance(c,player)<650){const angle=Math.atan2(player.y-c.y,player.x-c.x);c.angle=angle;const nx=c.x+Math.cos(angle)*105*dt,ny=c.y+Math.sin(angle)*105*dt;if(!collision(nx,ny,21)){c.x=nx;c.y=ny}if(distance(c,player)<38){player.cash=Math.max(0,player.cash-400);player.heat=0;player.x=255;player.y=350;if(player.car){player.car.x=275;player.car.y=350;player.car.velocity=0;player.car=null}const lostCargo=Boolean(activeContract);activeContract=null;notify(lostCargo?'Zadržení · zásilka zabavena · pokuta 400 Kč':'Zadržení · pokuta 400 Kč · návrat do čtvrti');saveProgress();updateHud()}}else{if(c.axis)c.x=(c.x+c.speed*dt)%size;else c.y=(c.y+c.speed*dt)%size;c.angle=c.axis?0:Math.PI/2}}
 for(const p of people){if(p.role&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=(p.x+p.dir*18*dt+size)%size;else p.y=(p.y+p.dir*18*dt+size)%size}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}}}
 function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill()}
@@ -558,7 +661,7 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   if(!player.car){drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ffee';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,15,0,7);ctx.stroke()}
   drawBoundaryFog2d();
   ctx.restore();
-  drawDistrictAtmosphere();
+  drawDistrictAtmosphere();drawActionAim();
   ctx.strokeStyle='#c3e3ff20';ctx.lineWidth=1;ctx.beginPath();const count=Math.min(130,Math.floor(w/9));for(let i=0;i<count;i++){const rx=(i*137.7+time*70)%w,ry=(i*91.3+time*480)%h;ctx.moveTo(rx,ry);ctx.lineTo(rx-4,ry+13)}ctx.stroke();
   drawMap();if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
 }
@@ -648,13 +751,13 @@ function completeContract(){
   notify('Doručeno: '+item.name+' · +'+item.reward.toLocaleString('cs-CZ')+' Kč · +'+item.xp+' XP');awardXp(item.xp);saveProgress();updateHud();return true;
 }
 function saveProgress(){
-  try{localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,activeContract,contractCount,weaponInventory:[...weaponInventory]}));}catch{}
+  try{localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,activeContract,contractCount,weaponInventory:[...weaponInventory],equippedWeapon,actionMode}));}catch{}
 }
 function restoreProgress(){
   try{
     const saved=JSON.parse(localStorage.getItem('street-life-progress-v1')||'null');if(!saved||saved.version!==1)return;
     if(!['xp','cash','rep','missionIndex','contractCount'].every(key=>Number.isSafeInteger(saved[key])&&saved[key]>=0)||saved.missionIndex>4||typeof saved.legal!=='boolean'||typeof saved.complete!=='boolean')return;
-    if(Array.isArray(saved.weaponInventory)){for(const id of saved.weaponInventory){if(typeof id==='string'&&gunshopCatalog.some(item=>item.id===id))weaponInventory.add(id);}}lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;contractCount=saved.contractCount;
+    if(Array.isArray(saved.weaponInventory)){for(const id of saved.weaponInventory){if(typeof id==='string'&&gunshopCatalog.some(item=>item.id===id))weaponInventory.add(id);}}if(typeof saved.equippedWeapon==='string'&&weaponInventory.has(saved.equippedWeapon)){equippedWeapon=saved.equippedWeapon;actionMode=saved.actionMode===true;aimAngle=player.angle;}lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;contractCount=saved.contractCount;
     if(Number.isFinite(saved.health)&&saved.health>=0&&saved.health<=100)player.health=saved.health;
     if(legal)setServiceMission();
     const contract=saved.activeContract;
@@ -670,7 +773,7 @@ function render(){
   if(!window.streetLifeRenderer){renderLegacy();return;}
   try{
     window.streetLifeRenderer.render({player,camera,time,interior,zoom:viewZoom,target:targetAvailable()?mission():null});
-    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);if(!interior)drawMap();
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);if(!interior)drawMap();drawActionAim();
     if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
   }catch(error){console.error('3D frame failed',error);window.streetLifeRenderer=null;document.querySelector('#world3d')?.remove();$('renderMode').textContent='2D';notify('3D vykreslování selhalo. Pokračuje 2D verze.');renderLegacy();}
 }
