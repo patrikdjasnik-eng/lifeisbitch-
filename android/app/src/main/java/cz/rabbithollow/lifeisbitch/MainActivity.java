@@ -19,6 +19,7 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
     game = new WebView(this);
     setContentView(game);
     WebSettings settings = game.getSettings();
@@ -34,15 +35,22 @@ public class MainActivity extends Activity {
         return response != null ? response : new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
       }
       @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        return !"appassets.androidplatform.net".equals(request.getUrl().getHost());
+        return !("https".equals(request.getUrl().getScheme()) && "appassets.androidplatform.net".equals(request.getUrl().getHost()) && request.getUrl().getPath().startsWith("/assets/"));
       }
     });
+    if (android.os.Build.VERSION.SDK_INT >= 30) {
+      getWindow().getDecorView().setOnApplyWindowInsetsListener((view, insets) -> {
+        android.graphics.Insets safe = insets.getInsets(android.view.WindowInsets.Type.displayCutout());
+        game.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+        return insets;
+      });
+    }
     game.loadUrl("https://appassets.androidplatform.net/assets/index.html");
   }
 
   @Override protected void onPause() {
     if (game != null) {
-      game.evaluateJavascript("if(typeof started !== 'undefined' && started && !paused) document.getElementById('pause').click();", null);
+      game.evaluateJavascript("if(typeof keys !== 'undefined') keys.clear(); if(typeof saveProgress === 'function') saveProgress(); if(typeof started !== 'undefined' && started && !paused && !dialogOpen) document.getElementById('pause').click();", null);
       game.onPause();
     }
     super.onPause();

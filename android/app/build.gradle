@@ -1,16 +1,60 @@
 plugins { id 'com.android.application' }
+def releaseKeys = ['ANDROID_KEYSTORE_PATH', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+def hasSigning = releaseKeys.every { System.getenv(it) }
 android {
   namespace 'cz.rabbithollow.lifeisbitch'
-  compileSdk 35
+  compileSdk 36
+  buildFeatures { buildConfig true }
   defaultConfig {
     applicationId 'cz.rabbithollow.lifeisbitch'
     minSdk 26
-    targetSdk 35
-    versionCode 1
-    versionName '0.1.0'
+    targetSdk 36
+    versionCode 6
+    versionName '0.1.6-beta'
+    testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
   }
-  sourceSets { main { assets.srcDirs = ['../../web'] } }
-  buildTypes { release { minifyEnabled false } }
+  signingConfigs {
+    release {
+      if (hasSigning) {
+        storeFile file(System.getenv('ANDROID_KEYSTORE_PATH'))
+        storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+        keyAlias System.getenv('ANDROID_KEY_ALIAS')
+        keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+      }
+    }
+  }
+  sourceSets { main { assets.srcDirs = [layout.buildDirectory.dir('generated/gameAssets')] } }
+  buildTypes {
+    release {
+      minifyEnabled false
+      if (hasSigning) signingConfig signingConfigs.release
+    }
+  }
   compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+  lint { abortOnError true; checkReleaseBuilds true }
 }
-dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
+tasks.register('prepareGameAssets', Sync) {
+  from('../../web') { exclude 'account-ui.js' }
+  from('src/main/mobile')
+  into(layout.buildDirectory.dir('generated/gameAssets'))
+  doLast {
+    def index = new File(destinationDir, 'index.html')
+    index.text = index.getText('UTF-8')
+      .replace('<script src="account-ui.js"></script>', '<script src="mobile.js"></script>')
+      .replace('</head>', '<link rel="stylesheet" href="mobile.css"></head>')
+    def style = new File(destinationDir, 'style.css')
+    style.text = style.getText('UTF-8').replaceAll(/(?m)^@import[^;]+;/, '')
+  }
+}
+tasks.named('preBuild').configure { dependsOn 'prepareGameAssets' }
+tasks.register('verifyPlaySigning') {
+  doLast { if (!hasSigning) throw new GradleException('Missing upload-key environment variables. See docs/google-play/RELEASE.md.') }
+}
+tasks.register('playBundle') { dependsOn 'verifyPlaySigning', 'bundleRelease' }
+tasks.named('bundleRelease').configure { mustRunAfter 'verifyPlaySigning' }
+dependencies {
+  implementation 'androidx.webkit:webkit:1.12.1'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+  androidTestImplementation 'androidx.test:core:1.6.1'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
