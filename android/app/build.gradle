@@ -51,7 +51,7 @@ tasks.register('verifyPlaySigning') {
   doLast { if (!hasSigning) throw new GradleException('Missing upload-key environment variables. See docs/google-play/RELEASE.md.') }
 }
 tasks.register('playBundle') { dependsOn 'verifyPlaySigning', 'bundleRelease' }
-tasks.named('bundleRelease').configure { mustRunAfter 'verifyPlaySigning' }
+tasks.configureEach { if (name == 'bundleRelease') mustRunAfter 'verifyPlaySigning' }
 dependencies {
   implementation 'androidx.webkit:webkit:1.12.1'
   androidTestImplementation 'androidx.test:runner:1.6.2'
