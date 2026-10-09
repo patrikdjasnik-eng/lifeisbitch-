@@ -2,7 +2,7 @@ name: Game UI smoke
 on:
   push:
     branches: [release/google-play-beta]
-    paths: ['web/**', '.github/ui-smoke.cjs', '.github/workflows/ui-smoke.yml', 'android/app/src/main/mobile/**']
+    paths: ['web/**', '.github/ui-smoke.cjs', '.github/radio-smoke.cjs', '.github/workflows/ui-smoke.yml', 'android/app/src/main/mobile/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,7 @@ jobs:
         run: |
           python3 -m http.server 8766 --bind 127.0.0.1 > /tmp/game-server.log 2>&1 &
           node .github/ui-smoke.cjs
+          node .github/radio-smoke.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
