@@ -1,0 +1,29 @@
+name: Game UI smoke
+on:
+  push:
+    branches: [release/google-play-beta]
+    paths: ['web/**', '.github/ui-smoke.cjs', '.github/workflows/ui-smoke.yml', 'android/app/src/main/mobile/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser test
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ui-test" playwright@1.55.1 --ignore-scripts --no-audit --no-fund
+          echo "NODE_PATH=$RUNNER_TEMP/ui-test/node_modules" >> "$GITHUB_ENV"
+          echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+      - name: Test actual game UI
+        run: |
+          python3 -m http.server 8766 --bind 127.0.0.1 > /tmp/game-server.log 2>&1 &
+          node .github/ui-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: game-ui-screenshots
+          path: ui-reports/
+          if-no-files-found: warn
