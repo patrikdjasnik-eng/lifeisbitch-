@@ -72,5 +72,9 @@
       event.preventDefault(); event.stopImmediatePropagation(); closeBoard();
     }
   }, true);
+  window.addEventListener('character:updated', event => {
+    const updated = characterSystem.restore(event.detail);
+    if (updated) { character = updated; showIdentity(); }
+  });
   showIdentity();
 })();

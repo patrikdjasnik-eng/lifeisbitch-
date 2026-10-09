@@ -98,6 +98,19 @@ ipcMain.handle('players:register', async (event, profile) => {
   } catch { return { registered: false }; }
 });
 
+ipcMain.handle('accounts:request', async (event, action, payload) => {
+  if (event.sender !== gameWindow?.webContents || event.senderFrame?.url !== 'game://local/index.html') return { ok: false, error: 'Neplatné okno.' };
+  if (!['register', 'login', 'recover', 'session', 'logout'].includes(action) || !payload || JSON.stringify(payload).length > 1800) return { ok: false, error: 'Neplatná žádost.' };
+  try {
+    const endpoint = new URL(process.env.LIB_REGISTRY_URL || 'http://127.0.0.1:8789');
+    if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(endpoint.hostname))) throw Error('HTTPS required');
+    endpoint.pathname = '/api/accounts/' + action; endpoint.search = ''; endpoint.hash = '';
+    const response = await fetch(endpoint, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(12000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const result = await response.json();
+    return response.ok ? result : { ok: false, error: result.error || 'Žádost se nezdařila.' };
+  } catch { return { ok: false, error: 'Server účtů není dostupný. Můžeš hrát offline.' }; }
+});
+
 app.whenReady().then(async () => {
   protocol.handle('game', async request => {
     try { return await net.fetch(pathToFileURL(assetPath(request.url)).toString()); }

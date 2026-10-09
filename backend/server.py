@@ -1,4 +1,5 @@
 """Local SQLite player registry. Run with Python 3.11+."""
+import accounts
 import hashlib
 import json
 import os
@@ -66,7 +67,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200 if self.path == "/health" else 404, {"ok": self.path == "/health"})
 
     def do_POST(self):
-        if self.path != "/api/players/register":
+        if self.path not in ["/api/players/register", *["/api/accounts/" + action for action in ("register", "login", "recover", "session", "logout")]]:
             return self.reply(404, {"error": "Not found"})
         with lock:
             now = time.monotonic()
@@ -76,18 +77,24 @@ class Handler(BaseHTTPRequestHandler):
             address = self.client_address[0]
             stamp, count = limits.get(address, (now, 0))
             limits[address] = (stamp, count + 1)
-        if count >= 30:
+        if count >= (10 if self.path.startswith('/api/accounts/') else 30):
             return self.reply(429, {"error": "Try later"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 2048:
                 return self.reply(413, {"error": "Invalid body size"})
             payload = json.loads(self.rfile.read(length))
-            self.reply(200, register(payload))
+            if self.path.startswith("/api/accounts/"):
+                with connect() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    result = accounts.handle(db, self.path.rsplit("/", 1)[-1], payload)
+                self.reply(200, result)
+            else:
+                self.reply(200, register(payload))
         except PermissionError as error:
             self.reply(409, {"error": str(error)})
-        except (ValueError, TypeError):
-            self.reply(400, {"error": "Invalid registration"})
+        except (ValueError, TypeError) as error:
+            self.reply(400, {"error": str(error) if isinstance(error, ValueError) else "Neplatná žádost."})
         except sqlite3.Error:
             self.reply(503, {"error": "Database unavailable"})
 
