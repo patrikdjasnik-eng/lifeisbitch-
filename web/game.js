@@ -718,16 +718,72 @@ function drawDistrictAtmosphere(){
 }
 function drawMap(){
   const mw=w<800?115:190,x=w-mw-26,y=h-mw-76,zoom=mapExpanded?cityMapZoom:nearbyMapZoom;
-  const span=size/zoom,s=mw/span,cx=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.x)),cy=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
-  rect(x-8,y-8,mw+16,mw+16,'#080f18ed');ctx.save();ctx.beginPath();ctx.rect(x,y,mw,mw);ctx.clip();ctx.translate(x-(cx-span/2)*s,y-(cy-span/2)*s);
-  rect(0,0,size*s,size*s,'#24353e');
-  for(const area of cityBlocks){rect(area.x*s,area.y*s,block*s,block*s,area.type==='park'?'#365c48':area.type==='modern'?'#2e495a':area.type==='industrial'?'#4c4440':'#2c3840')}
-  for(let i=0;i<gridSize;i++){rect(i*block*s,0,52*s,size*s,'#69787f');rect(0,i*block*s,size*s,52*s,'#69787f')}
-  for(const b of buildings)rect(b.x*s,b.y*s,b.w*s,b.h*s,'#0d1b28');
-  if(!interior){const gunshop=buildings.find(b=>b.name==='GUNSHOP');if(gunshop){ctx.fillStyle='#f4ad58';ctx.font='bold 11px Arial';ctx.fillText('G',(gunshop.x+gunshop.w/2)*s,(gunshop.y+gunshop.h/2)*s);}}if(targetAvailable()){ctx.fillStyle='#c5f46b';ctx.beginPath();ctx.arc(mission().x*s,mission().y*s,4,0,7);ctx.fill()}
-  for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
-  if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO',x,y-17);
+  const span=size/zoom,scale=mw/span;
+  const cx=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.x));
+  const cy=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
+  const tilt=.58,skew=.22;
+  const project=(wx,wy,height=0)=>({
+    x:x+mw/2+(wx-cx-(wy-cy)*skew)*scale,
+    y:y+mw/2+((wy-cy)*tilt-height*.45)*scale
+  });
+  const polygon=(points,color)=>{
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);
+    for(let index=1;index<points.length;index++)ctx.lineTo(points[index].x,points[index].y);
+    ctx.closePath();ctx.fill();
+  };
+  const tile=(wx,wy,width,depth,color)=>{
+    polygon([project(wx,wy),project(wx+width,wy),project(wx+width,wy+depth),project(wx,wy+depth)],color);
+  };
+  const drawBuilding=(building)=>{
+    const {x:bx,y:by,w:bw,h:bh}=building;
+    const elevation=Math.max(12,Math.min(95,building.height||20));
+    const a=project(bx,by),b=project(bx+bw,by),c=project(bx+bw,by+bh),d=project(bx,by+bh);
+    const at=project(bx,by,elevation),bt=project(bx+bw,by,elevation),ct=project(bx+bw,by+bh,elevation),dt=project(bx,by+bh,elevation);
+    polygon([b,c,ct,bt],'#8f9eab');
+    polygon([d,c,ct,dt],'#788994');
+    polygon([at,bt,ct,dt],'#d5dde2');
+    ctx.strokeStyle='#a3b3bd';ctx.lineWidth=.6;ctx.beginPath();
+    ctx.moveTo(at.x,at.y);ctx.lineTo(bt.x,bt.y);ctx.lineTo(ct.x,ct.y);ctx.lineTo(dt.x,dt.y);ctx.closePath();ctx.stroke();
+  };
+  rect(x-8,y-8,mw+16,mw+16,'#0c1723ed');
+  ctx.save();ctx.beginPath();ctx.rect(x,y,mw,mw);ctx.clip();
+  rect(x,y,mw,mw,'#e5ebeb');
+  const visibleRadius=span*1.8;
+  for(const area of cityBlocks){
+    if(Math.abs(area.x-cx)>visibleRadius||Math.abs(area.y-cy)>visibleRadius)continue;
+    const shade=area.type==='park'?'#a9cc9d':area.type==='industrial'?'#d4c9be':area.type==='modern'?'#dce6ed':area.type==='plaza'?'#e3ded3':'#e7e5df';
+    tile(area.x,area.y,block,block,shade);
+  }
+  const minCol=Math.max(0,Math.floor((cx-visibleRadius)/block));
+  const maxCol=Math.min(gridSize-1,Math.ceil((cx+visibleRadius)/block));
+  const minRow=Math.max(0,Math.floor((cy-visibleRadius)/block));
+  const maxRow=Math.min(gridSize-1,Math.ceil((cy+visibleRadius)/block));
+  for(let col=minCol;col<=maxCol;col++)tile(col*block,0,52,size,'#f8faf8');
+  for(let row=minRow;row<=maxRow;row++)tile(0,row*block,size,52,'#f8faf8');
+  const visibleBuildings=buildings.filter(b=>Math.abs(b.x-cx)<visibleRadius&&Math.abs(b.y-cy)<visibleRadius);
+  visibleBuildings.sort((a,b)=>(a.y+a.h)-(b.y+b.h));
+  for(const building of visibleBuildings)drawBuilding(building);
+  const pins=[['GUNSHOP','🔫'],['POLICIE ČR','👮'],['BANKA','🏦'],['POTRAVINY','🛒'],['UBYTOVNA','🏠']];
+  for(const [name,emoji] of pins){
+    const b=buildings.find(item=>item.name===name);
+    if(!b||Math.abs(b.x-cx)>visibleRadius||Math.abs(b.y-cy)>visibleRadius)continue;
+    const p=project(b.x+b.w/2,b.y+b.h/2,(b.height||20)+22);
+    ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(emoji,p.x,p.y);
+  }
+  if(targetAvailable()){
+    const m=mission(),p=project(m.x,m.y);
+    ctx.fillStyle='#70b64b';ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();
+  }
+  for(const car of cars){
+    if(!car.police||Math.abs(car.x-cx)>visibleRadius||Math.abs(car.y-cy)>visibleRadius)continue;
+    const p=project(car.x,car.y);ctx.fillStyle='#267ed3';ctx.fillRect(p.x-2,p.y-2,4,4);
+  }
+  const point=project(player.x,player.y);
+  ctx.fillStyle='#4285f4';ctx.strokeStyle='#ffffff';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(point.x,point.y,5,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.restore();
+  ctx.textAlign='left';ctx.font='bold 10px Arial';ctx.fillStyle='#dce8f0';
+  ctx.fillText(mapExpanded?'3D MAPA · CELÉ MĚSTO':'3D MAPA · OKOLÍ',x,y-17);
 }
 let mapExpanded=false;
 canvas.addEventListener?.('pointerup',event=>{
