@@ -29,6 +29,7 @@ jobs:
           gradle-version: '8.11.1'
       - name: Verify game logic
         run: |
+          node --check web/career-system.js
           node --check web/game.js
           node --check web/renderer3d.js
           node --check android/app/src/main/mobile/mobile.js
@@ -69,12 +70,16 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: cd android && gradle --no-daemon :app:connectedDebugAndroidTest
+          script: |
+            cd android
+            gradle --no-daemon :app:connectedDebugAndroidTest || { adb logcat -d -t 1500 > emulator-log.txt; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-test-reports
-          path: android/app/build/reports/androidTests/
+          path: |
+            android/app/build/reports/androidTests/
+            android/emulator-log.txt
           if-no-files-found: ignore
       - name: Restore private upload key
         if: inputs.signed_release
@@ -107,3 +112,4 @@ jobs:
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/play-upload.jks"
+
