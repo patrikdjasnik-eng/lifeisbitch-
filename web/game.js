@@ -456,6 +456,24 @@ function drawStreetProps(){
     glow(x+275,y+94,23,'#000b1380');ctx.fillStyle='#1e5550';for(let k=0;k<5;k++){ctx.beginPath();ctx.arc(x+272+Math.sin(k*2)*8,y+88+Math.cos(k*2)*8,12,0,7);ctx.fill()}ctx.fillStyle='#467a6260';ctx.beginPath();ctx.arc(x+268,y+85,10,0,7);ctx.fill();
   }
 }
+
+function drawBoundaryFog2d() {
+  const band = 900;
+  for (const edge of ['left', 'right', 'top', 'bottom']) {
+    const horizontal = edge === 'left' || edge === 'right';
+    const reversed = edge === 'right' || edge === 'bottom';
+    const outside = reversed ? size : 0;
+    const inside = reversed ? size-band : band;
+    const gradient = horizontal ? ctx.createLinearGradient(outside, 0, inside, 0) : ctx.createLinearGradient(0, outside, 0, inside);
+    gradient.addColorStop(0, '#465768');
+    gradient.addColorStop(.4, '#465768cc');
+    gradient.addColorStop(1, '#46576800');
+    ctx.fillStyle = gradient;
+    if (horizontal) ctx.fillRect(reversed ? size-band : 0, 0, band, size);
+    else ctx.fillRect(0, reversed ? size-band : 0, size, band);
+  }
+}
+
 function renderLegacy(){if(interior){renderInterior2d();return;}
   ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#0b1723');ctx.save();
   const scale=(w<800?1.04:1.32)*viewZoom;
@@ -469,6 +487,7 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   for(const c of cars)if(visible(c.x,c.y,160))drawCar(c);
   if(targetAvailable()){const m=mission();glow(m.x,m.y,60,'#ae7bfa23');drawPerson(m.x,m.y,-Math.PI/2,'#7c5185');ctx.strokeStyle='#c5f46b';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(m.x,m.y,23+Math.sin(time*3),15,0,0,7);ctx.stroke();ctx.fillStyle='#c5f46b';polygon([[m.x,m.y-29+Math.sin(time*2)*3],[m.x-5,m.y-37+Math.sin(time*2)*3],[m.x+5,m.y-37+Math.sin(time*2)*3]],'#c5f46b');ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText(m.speaker,m.x,m.y-48)}
   if(!player.car){drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ffee';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,15,0,7);ctx.stroke()}
+  drawBoundaryFog2d();
   ctx.restore();
   drawDistrictAtmosphere();
   ctx.strokeStyle='#c3e3ff20';ctx.lineWidth=1;ctx.beginPath();const count=Math.min(130,Math.floor(w/9));for(let i=0;i<count;i++){const rx=(i*137.7+time*70)%w,ry=(i*91.3+time*480)%h;ctx.moveTo(rx,ry);ctx.lineTo(rx-4,ry+13)}ctx.stroke();

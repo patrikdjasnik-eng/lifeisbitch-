@@ -11,6 +11,47 @@ let renderer,scene,camera,moon,moonTarget,marker,playerRing,contact,frameCount=0
 let currentTarget=null;
 let interiorScene,interiorActor,interiorRing,interiorGroup,interiorKey=null;
 
+
+function addBoundaryFog() {
+  const extent = source.size * unit;
+  const fogColor = new THREE.Color('#465768');
+  // Vrstvy zakrývají konec terénu i prostor za hranicí města.
+  for (const height of [1, 4, 8, 13, 19]) {
+    const fogMaterial = new THREE.ShaderMaterial({
+      uniforms: { extent: { value: extent }, fogColor: { value: fogColor }, heightOffset: { value: height } },
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: `varying vec3 worldPoint;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          worldPoint = world.xyz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader: `uniform float extent;
+        uniform vec3 fogColor;
+        uniform float heightOffset;
+        varying vec3 worldPoint;
+        void main() {
+          float edge = min(min(worldPoint.x, worldPoint.z), min(extent-worldPoint.x, extent-worldPoint.z));
+          float density = 1.0-smoothstep(-8.0, 38.0 + heightOffset*.5, edge);
+          float drift = .94 + .06*sin(worldPoint.x*.09 + worldPoint.z*.07 + heightOffset);
+          gl_FragColor = vec4(fogColor, density * drift * .65);
+        }`
+    });
+    const layer = new THREE.Mesh(new THREE.PlaneGeometry(extent + 800, extent + 800), fogMaterial);
+    layer.rotation.x = -Math.PI/2;
+    layer.position.set(extent/2, height, extent/2);
+    layer.renderOrder = 20 + height;
+    scene.add(layer);
+  }
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(extent + 1200, extent + 1200),
+    new THREE.MeshBasicMaterial({ color: '#465768', fog: false })
+  );
+  backdrop.rotation.x = -Math.PI/2;
+  backdrop.position.set(extent/2, -.3, extent/2);
+  scene.add(backdrop);
+}
+
 function material(color,options={}){
   const key=color+JSON.stringify(options);
   if(!materials.has(key))materials.set(key,new THREE.MeshStandardMaterial({color,roughness:.76,...options}));
@@ -237,7 +278,7 @@ function setup(){
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
-  scene=new THREE.Scene();scene.background=new THREE.Color('#142537');scene.fog=new THREE.FogExp2('#1b2a3c',.011);
+  scene=new THREE.Scene();scene.background=new THREE.Color('#465768');scene.fog=new THREE.FogExp2('#465768',.006);addBoundaryFog();
   camera=new THREE.OrthographicCamera(-30,30,20,-20,.1,300);
   scene.add(new THREE.HemisphereLight('#bfd9f3','#554336',1.45));
   moon=new THREE.DirectionalLight('#c9ddf7',2.7);moon.position.set(30,50,20);moon.castShadow=true;
