@@ -21,6 +21,7 @@ jobs:
           node --check desktop/main.cjs
           node --check web/renderer3d.js
           npm test
+          python backend/test_accounts.py
       - name: Test game launch
         run: npm run desktop:smoke
       - name: Build Windows game folder
@@ -45,11 +46,11 @@ jobs:
           if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
           if ($game.ExitCode -ne 0) { throw "Installed game exit: $($game.ExitCode)" }
           Write-Output 'PASS: installed game, desktop shortcut, purchases and MHD'
-          Compress-Archive -Path package/* -DestinationPath Life-Is-Bitch-Windows-0.1.4.zip
+          Compress-Archive -Path package/* -DestinationPath Life-Is-Bitch-Windows-0.1.5.zip
       - uses: actions/upload-artifact@v4
         with:
           name: life-is-bitch-windows
-          path: Life-Is-Bitch-Windows-0.1.4.zip
+          path: Life-Is-Bitch-Windows-0.1.5.zip
           if-no-files-found: error
 
       - name: Build one-click EXE installer
@@ -59,7 +60,7 @@ jobs:
       - name: Verify EXE installer and shortcut
         shell: pwsh
         run: |
-          $setup = Get-Item windows-dist/Life-Is-Bitch-Setup-0.1.4.exe
+          $setup = Get-Item windows-dist/Life-Is-Bitch-Setup-0.1.5.exe
           $installed = Join-Path $env:LOCALAPPDATA 'Programs/life-is-bitch'
           $process = Start-Process $setup.FullName -ArgumentList '/S' -PassThru
           if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'Installer timeout' }
@@ -74,17 +75,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: life-is-bitch-setup
-          path: windows-dist/Life-Is-Bitch-Setup-0.1.4.exe
+          path: windows-dist/Life-Is-Bitch-Setup-0.1.5.exe
           if-no-files-found: error
       - name: Publish verified installer
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view v0.1.4 2>$null
+          gh release view v0.1.5 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create v0.1.4 --target "${{ github.sha }}" --title "Life Is Bitch Beta 0.1.4" --notes "Windows x64: one-click installation, desktop icon and launcher with game updates. Includes named characters, local player registry integration, mouse wheel zoom, boundary fog and updated HUD."
+            gh release create v0.1.5 --target "${{ github.sha }}" --title "Life Is Bitch Beta 0.1.5" --notes "Windows x64: email-free accounts, password login, recovery codes, studio branding and one-click installer. Online accounts require a running registry server. Multiplayer and cloud saves are not included."
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
           }
-          gh release upload v0.1.4 windows-dist/Life-Is-Bitch-Setup-0.1.4.exe --clobber
+          gh release upload v0.1.5 windows-dist/Life-Is-Bitch-Setup-0.1.5.exe --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
