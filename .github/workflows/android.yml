@@ -1,13 +1,20 @@
-name: Android APK and AAB
+name: Android Play beta
 on:
   push:
-    branches: [main]
+    branches: [release/google-play-beta]
+    paths: ['android/**', 'web/**', 'tests/**', '.github/workflows/android.yml', 'docs/google-play/**']
   workflow_dispatch:
+    inputs:
+      signed_release:
+        description: 'Build signed upload AAB using configured repository secrets'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -16,19 +23,87 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
-      - name: Verify JavaScript
-        run: node --check web/game.js && node --check web/renderer3d.js
-      - name: Build Android packages
+          gradle-version: '8.11.1'
+      - name: Verify game logic
+        run: |
+          node --check web/game.js
+          node --check web/renderer3d.js
+          node --check android/app/src/main/mobile/mobile.js
+          npm test
+      - name: Build test packages and run Android lint
         working-directory: android
-        run: gradle --no-daemon :app:assembleDebug :app:bundleRelease
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :app:bundleRelease :app:lintRelease
+      - name: Verify offline Android assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          assets = Path('android/app/build/generated/gameAssets')
+          index = (assets / 'index.html').read_text()
+          assert 'account-ui.js' not in index and 'mobile.js' in index
+          assert '@import' not in (assets / 'style.css').read_text()
+          with zipfile.ZipFile('android/app/build/outputs/bundle/release/app-release.aab') as bundle:
+              assert not any(name.endswith('.so') for name in bundle.namelist()), 'Native libraries need a separate 16 KB compatibility audit'
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: life-is-bitch-android
+          name: android-beta-unsigned
           path: |
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/outputs/bundle/release/*.aab
+            android/app/build/reports/lint-results-release.html
           if-no-files-found: error
+      - name: Enable KVM for emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android device smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: cd android && gradle --no-daemon :app:connectedDebugAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-test-reports
+          path: android/app/build/reports/androidTests/
+          if-no-files-found: ignore
+      - name: Restore private upload key
+        if: inputs.signed_release
+        env:
+          UPLOAD_KEY: ${{ secrets.ANDROID_UPLOAD_KEY_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$UPLOAD_KEY" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Signing secrets are missing"; exit 1; }
+          umask 077
+          printf '%s' "$UPLOAD_KEY" | base64 --decode > "$RUNNER_TEMP/play-upload.jks"
+      - name: Build signed Play upload bundle
+        if: inputs.signed_release
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/play-upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon :app:playBundle
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+      - uses: actions/upload-artifact@v4
+        if: inputs.signed_release
+        with:
+          name: play-upload-signed
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/play-upload.jks"
