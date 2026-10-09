@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm');
 const storage=new Map(),els=new Map(),canvas={getContext(){return {setTransform(){}}},addEventListener(){}};
 function el(){return {firstChild:{textContent:''},style:{},classList:{add(){},remove(){},toggle(){}},replaceChildren(){},append(){}}}
 const context={console,innerWidth:1440,innerHeight:900,devicePixelRatio:1,localStorage:{getItem(k){return storage.get(k)??null},setItem(k,v){storage.set(k,v)}},document:{querySelector(){return canvas},getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelectorAll(){return []},createElement(){return el()}},addEventListener(){},requestAnimationFrame(){}};
-context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
+context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/career-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
 vm.runInContext(`
 started=true;const shop=buildings.find(b=>b.name==='ŘEZNICTVÍ');if(!shop)throw Error('Shop missing');
 const door=doorFor(shop);player.x=door.x;player.y=door.y;if(nearestDoor()!==shop)throw Error('Shop entrance unreachable');
@@ -59,3 +59,25 @@ closeContracts();const bank=buildings.find(b=>b.name==='BANKA'),hostel=buildings
 for(const place of [bank,hostel]){if(!place)throw Error('Service missing');const door=doorFor(place);if(collision(door.x,door.y,10))throw Error('Blocked service door');enterBuilding(place);const point=lifeServicePoint();if(interiorCollision(point.x,point.y,10))throw Error('Blocked service point');player.x=point.x;player.y=point.y;if(!openLifeMenu('service'))throw Error('Service menu failed');closeContracts();interior.floor=1;if(openLifeMenu('service'))throw Error('Wrong floor service');interior=null;}
 `, context);
 console.log('PASS: bank transfers, entitlements, loans/repayment/overdue, rental/sleep, recurring bills, SMS limits, persistence/corrupt saves, service entrances and floors');
+
+
+vm.runInContext(`
+interior=null;started=true;paused=false;dialogOpen=false;player.car=null;complete=true;activeContract=null;careerState=careerSystem.create();player.xp=10000;
+for(const q of Object.values(careerSystem.catalog).flat())for(const stage of q.stages)if(collision(stage.x,stage.y,10))throw Error('Blocked career objective: '+q.id);
+openCareer('worker');if(!acceptCareer('worker'))throw Error('Career acceptance');
+if(acceptContract('cannabis'))throw Error('Concurrent repeatable contract');
+const cashBefore=player.cash,xpBefore=player.xp;let stale;
+for(let step=0;step<3;step++){
+ const t=mission();player.x=t.x;player.y=t.y;interact();if(!careerDialogToken)throw Error('Career interaction missing');
+ const token=careerDialogToken;stale=token;
+ if(!finishCareerStage(token))throw Error('Stage completion failed');
+ if(finishCareerStage(token))throw Error('Duplicate stage reward');
+ saveProgress();careerState=careerSystem.create();restoreProgress();
+ if(step<2&&careerState.active.stage!==step+1)throw Error('Stage not persisted');
+}
+const q=careerSystem.catalog.worker[0];if(player.cash!==cashBefore+q.reward||player.xp!==xpBefore+q.xp||careerState.done.worker!==1)throw Error('Career reward or completion persistence');
+openCareer('dealer');acceptCareer('dealer');const t=mission();player.x=t.x;player.y=t.y;player.car={};if(showCareerStage())throw Error('Car interaction allowed');player.car=null;
+showCareerStage();const token=careerDialogToken;player.x+=1000;if(finishCareerStage(token))throw Error('Remote completion');player.x=t.x;closeContracts();if(finishCareerStage(token))throw Error('Closed dialog completion');
+careerState.active=null;saveProgress();restoreProgress();if(careerState.active)throw Error('Cancelled mission restored');
+`,context);
+console.log('PASS: all career markers reachable, actual E interaction, contract exclusivity, completion rewards once, save/reload mid-quest, car/distance/closed-dialog guards');

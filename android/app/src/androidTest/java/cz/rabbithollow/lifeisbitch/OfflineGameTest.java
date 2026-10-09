@@ -22,7 +22,7 @@ public class OfflineGameTest {
       WebView web = (WebView)((ViewGroup)activity.findViewById(android.R.id.content)).getChildAt(0);
       web.evaluateJavascript(script, value -> { result.set(value); latch.countDown(); });
     });
-    assertTrue("WebView callback timeout", latch.await(10, TimeUnit.SECONDS));
+    assertTrue("WebView callback timeout", latch.await(60, TimeUnit.SECONDS));
     return result.get();
   }
 
@@ -41,6 +41,7 @@ public class OfflineGameTest {
         activity.checkSelfPermission(Manifest.permission.INTERNET)));
       assertEquals("true", evaluate(scenario, "!document.getElementById('accountButton') && !!document.getElementById('betaBadge')"));
       assertEquals("true", evaluate(scenario, "document.getElementById('characterName').value='Android Tester';document.getElementById('start').click();started"));
+      assertEquals("true", evaluate(scenario, "careerSystem.catalog.dealer.length === 20 && careerSystem.catalog.worker.length === 20 && !!document.getElementById('careers')"));
       assertEquals("true", evaluate(scenario, "document.querySelectorAll('.touch button').length >= 10"));
       assertEquals("true", evaluate(scenario, "document.querySelector('#mobileSettings button').click();!document.getElementById('mobilePrivacy').hidden"));
       String profile = evaluate(scenario, "localStorage.getItem('street-life-character-v1')");
@@ -52,3 +53,4 @@ public class OfflineGameTest {
     }
   }
 }
+

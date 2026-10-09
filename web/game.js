@@ -26,6 +26,8 @@ addEventListener('wheel', event => {
 
 let interior=null;
 let lifeState = lifeSystem.create();
+let careerState = careerSystem.create();
+let careerDialogToken = null;
 const lifeEntitlements = [];
 let lifeMenu = null;
 let lifeSaveElapsed = 0;
@@ -142,9 +144,9 @@ const missions=[
  {title:'Kdo chceš být?',text:'Vrať se k Viktorovi. Dnešní noc rozhodne o zítřku.',x:210,y:350,label:'Viktor · klub Neon',speaker:'VIKTOR',dialog:'Obstál jsi. Můžeme spolu dělat dál. Víc peněz, víc problémů. Nebo odejdi a zkus si ten život postavit jinak.',choices:[['Zůstat v ulicích.','streetEnd'],['Začít znovu v servisu.','cleanEnd']]}
 ];
 let missionIndex=0,legal=false,complete=false;
-function mission(){if(activeContract){const item=substances.find(entry=>entry.id===activeContract.substanceId),route=deliveryRoutes[activeContract.routeIndex];return {...route,title:'Zakázka · '+item.name,text:'Doruč '+item.name+' kontaktu. Odměna '+item.reward.toLocaleString('cs-CZ')+' Kč a '+item.xp+' XP.',speaker:'KONTAKT'}}return missions[missionIndex]}function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function mission(){const careerTarget=careerSystem.target(careerState);if(careerTarget)return careerTarget;if(activeContract){const item=substances.find(entry=>entry.id===activeContract.substanceId),route=deliveryRoutes[activeContract.routeIndex];return {...route,title:'Zakázka · '+item.name,text:'Doruč '+item.name+' kontaktu. Odměna '+item.reward.toLocaleString('cs-CZ')+' Kč a '+item.xp+' XP.',speaker:'KONTAKT'}}return missions[missionIndex]}function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function notify(text){$('toast').textContent=text;$('toast').style.opacity='1';toastTimer=4}
-function updateHud(){ if($('health'))$('health').textContent=Math.round(player.health)+'/100';$('cash').textContent=player.cash.toLocaleString('cs-CZ')+' Kč';$('rep').textContent=player.rep;$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat));$('missionTitle').textContent=complete&&!activeContract?'Nový den':mission().title;$('missionText').textContent=complete&&!activeContract?'První noc je za tebou. Otevři Kontakty a pokračuj v zakázkách.':mission().text;$('objective').textContent=complete&&!activeContract?'J · Kontakty a zakázky':mission().label;updateProgressionHud();if(interior)updateInteriorHud();}
+function updateHud(){ if($('chapterLabel'))$('chapterLabel').textContent=careerState.active?(careerState.active.track==='dealer'?'ULICE':'PRÁCE')+' / '+String(careerState.done[careerState.active.track]+1).padStart(2,'0')+' Z 20':complete?'VOLNÝ ŽIVOT / PRAHA':'KAPITOLA 01 / PRVNÍ NOC'; if($('health'))$('health').textContent=Math.round(player.health)+'/100';$('cash').textContent=player.cash.toLocaleString('cs-CZ')+' Kč';$('rep').textContent=player.rep;$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat));$('missionTitle').textContent=complete&&!activeContract&&!careerState.active?'Nový den':mission().title;$('missionText').textContent=complete&&!activeContract&&!careerState.active?'První noc je za tebou. Otevři Kariéru: 20 misí z ulice a 20 pracovních zakázek.':mission().text;$('objective').textContent=complete&&!activeContract&&!careerState.active?'K · Kariéra / J · Kontakty':mission().label;updateProgressionHud();if(interior)updateInteriorHud();}
 function advance(){missionIndex=Math.min(missionIndex+1,4);updateHud()}
 function showDialog(){if(complete||dialogOpen)return;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent=mission().speaker;$('dialogTitle').textContent=mission().title;$('dialogText').textContent=mission().dialog;$('choices').replaceChildren();for(const [text,action]of mission().choices){const button=document.createElement('button');button.textContent=text;button.onclick=()=>choose(action);$('choices').append(button)}}
 function choose(action){dialogOpen=false;$('dialog').classList.add('hidden');if(action==='illegal'){player.heat=1.8;notify('Zásilka převzata. Policie je ve střehu.');advance()}if(action==='legal'){legal=true;missions[1]={title:'Poctivá směna',text:'Dojdi do autoservisu. Ještě dnes potřebují pomoc.',x:1070,y:315,label:'Pavel · autoservis',speaker:'PAVEL',dialog:'Viktor tě poslal? Potřebuju někoho na noční směnu. Žádný otázky, ale taky žádný problémy. Tady máš devět stovek.',choices:[['Dokončit směnu. (+900 Kč)','deliver']]};advance()}if(action==='deliver'&&missionIndex===1&&!complete){awardXp(80);player.cash+=legal?900:1800;player.rep+=10;notify('Úkol splněn · '+(legal?'900':'1 800')+' Kč');advance()}if(action==='family'){awardXp(40);player.cash-=800;player.rep+=15;notify('Eliška: Díky. Dávej na sebe pozor.');advance()}if(action==='decline')advance();if(action==='hide'){awardXp(40);player.heat=0;notify('Pozornost policie klesla.');advance()}if(action.endsWith('End')){complete=true;notify(action==='streetEnd'?'Konec kapitoly: Král bez koruny.':'Konec kapitoly: Druhá šance.');$('missionText').textContent=action==='streetEnd'?'Ulice ti otevřela dveře. Otázka je, co si vezme zpátky.':'Peníze nejsou všechno. Zítra začínáš v servisu.';}updateHud();saveProgress()}
@@ -202,12 +204,12 @@ function buyButcherProduct(id) {
 }
 function useInterior(){if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){const outside=interior.outside;interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;updateHud();notify('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
 function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
-function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeContract)completeContract();else showDialog();return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
+function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(careerState.active)showCareerStage();else if(activeContract)completeContract();else showDialog();return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
 
 function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
 $('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify('První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
-addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
+addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='k')openCareer();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key)}$('touchE').onclick=interact;$('touchF').onclick=enterCar;
 $('sound').onclick=()=>{try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();sound=!sound;$('sound').textContent='ZVUK: '+(sound?'ZAPNUTO':'VYPNUTO');if(sound){const buffer=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.035;const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();filter.type='lowpass';filter.frequency.value=850;source.buffer=buffer;source.loop=true;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();audio.rainGain=gain}else audio.suspend()}catch{notify('Zvuk není v tomto prohlížeči dostupný.')}};
 function resize(){w=innerWidth;h=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
@@ -542,12 +544,12 @@ function awardXp(amount){
   if(playerLevel()>oldLevel){const unlocked=substances.filter(item=>item.level>oldLevel&&item.level<=playerLevel());notify('LEVEL '+playerLevel()+' · '+(unlocked.length?'Odemčeno: '+unlocked.map(item=>item.name).join(', '):'Nová úroveň zkušeností'));}
   saveProgress();
 }
-function targetAvailable(){return Boolean(activeContract)||!complete}
+function targetAvailable(){return Boolean(careerState.active)||Boolean(activeContract)||!complete}
 function updateProgressionHud(){
   const level=playerLevel(),minimum=levelThresholds[level-1],maximum=levelThresholds[level];
   $('level').textContent=level;$('xpText').textContent=maximum?(player.xp-minimum)+' / '+(maximum-minimum)+' XP':'MAX LEVEL · '+player.xp+' XP';
   $('xpFill').style.width=(maximum?Math.min(100,(player.xp-minimum)/(maximum-minimum)*100):100)+'%';
-  $('currentCargo').textContent=activeContract?substances.find(item=>item.id===activeContract.substanceId).name:missionIndex===1&&!legal&&!complete?'Konopí':'Bez zakázky';
+  $('currentCargo').textContent=careerState.active?careerSystem.current(careerState).title:activeContract?substances.find(item=>item.id===activeContract.substanceId).name:missionIndex===1&&!legal&&!complete?'Konopí':'Bez zakázky';
 }
 function openContracts(){
   if(!started||paused||dialogOpen)return;
@@ -560,15 +562,15 @@ function openContracts(){
     button.className='substanceCard';button.style.borderLeftColor=item.color;
     const title=document.createElement('strong');title.textContent=item.name+' · LVL '+item.level;
     const details=document.createElement('span');details.textContent=unlocked?item.category+' · '+item.reward.toLocaleString('cs-CZ')+' Kč · '+item.xp+' XP · riziko '+Math.ceil(item.risk)+'/5':'Zamčeno · odemkne se na levelu '+item.level;
-    button.append(title,details);button.disabled=!unlocked||!complete||Boolean(activeContract);button.onclick=()=>acceptContract(item.id);$('choices').append(button);
+    button.append(title,details);button.disabled=!unlocked||!complete||Boolean(activeContract)||Boolean(careerState.active);button.onclick=()=>acceptContract(item.id);$('choices').append(button);
   }
   if(activeContract){const cancel=document.createElement('button');cancel.textContent='Zrušit zakázku (bez odměny a XP)';cancel.onclick=()=>{activeContract=null;closeContracts();saveProgress();updateHud();notify('Zakázka zrušena.');};$('choices').append(cancel)}
   const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);
 }
-function closeContracts(){lifeMenu=null;activeShop=null;dialogOpen=false;$('dialog').classList.add('hidden');keys.clear()}
+function closeContracts(){careerDialogToken=null;$('dialog').classList.remove('careerDialog');lifeMenu=null;activeShop=null;dialogOpen=false;$('dialog').classList.add('hidden');keys.clear()}
 function acceptContract(id){
   const item=substances.find(entry=>entry.id===id);
-  if(!item||!complete||activeContract||playerLevel()<item.level)return false;
+  if(!item||!complete||activeContract||careerState.active||playerLevel()<item.level)return false;
   activeContract={substanceId:id,routeIndex:contractCount%deliveryRoutes.length};
   player.heat=Math.min(5,player.heat+item.risk);closeContracts();saveProgress();updateHud();notify(item.name+' · zakázka přijata');return true;
 }
@@ -579,7 +581,7 @@ function completeContract(){
   notify('Doručeno: '+item.name+' · +'+item.reward.toLocaleString('cs-CZ')+' Kč · +'+item.xp+' XP');awardXp(item.xp);saveProgress();updateHud();return true;
 }
 function saveProgress(){
-  try{localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,activeContract,contractCount}));}catch{}
+  try{localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,career:careerState,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,activeContract,contractCount}));}catch{}
 }
 function restoreProgress(){
   try{
@@ -590,12 +592,15 @@ function restoreProgress(){
     if(legal)setServiceMission();
     const contract=saved.activeContract;
     if(complete&&contract&&Number.isInteger(contract.routeIndex)&&contract.routeIndex>=0&&contract.routeIndex<deliveryRoutes.length&&substances.some(item=>item.id===contract.substanceId&&item.level<=playerLevel()))activeContract={substanceId:contract.substanceId,routeIndex:contract.routeIndex};
+    careerState=complete?careerSystem.restore(saved.career):careerSystem.create();
+    if(careerState.active)activeContract=null;
     if(activeContract)player.heat=substances.find(item=>item.id===activeContract.substanceId).risk;
   }catch{}
 }
 function setServiceMission(){missions[1]={title:'Poctivá směna',text:'Dojdi do autoservisu. Ještě dnes potřebují pomoc.',x:1070,y:315,label:'Pavel · autoservis',speaker:'PAVEL',dialog:'Potřebuju někoho na noční směnu. Tady máš devět stovek.',choices:[['Dokončit směnu. (+900 Kč)','deliver']]};}
 
 $('contracts').onclick=openContracts;
+$('careers').onclick=()=>openCareer();
 window.streetLifeScene={size,block,gridSize,buildingBuckets,districtAt,buildings,cars,people,lamps,cityBlocks,transitStops,transitLines,player,onReady(){notify('3D Žižkov · nový renderer je aktivní');$('renderMode').textContent='3D';},onError(message){$('renderMode').textContent='2D';notify(message)}};
 function render(){
   if(!window.streetLifeRenderer){renderLegacy();return;}
@@ -679,3 +684,58 @@ updateInteriorHud = function() {
 function frame(t){const dt=Math.min((t-last)/1000,.05);last=t;update(dt);render();requestAnimationFrame(frame)}restoreProgress();updateHud();requestAnimationFrame(frame);
 
 document.getElementById('touchMap').onclick=()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'m',bubbles:true}));};
+
+
+
+function careerButton(label, handler, disabled=false) {
+  const button=document.createElement('button');button.textContent=label;button.disabled=disabled;button.onclick=handler;$('choices').append(button);return button;
+}
+function openCareer(track) {
+  if(!started||paused||dialogOpen)return false;
+  if(interior){notify('Kariéru otevři venku na ulici.');return false;}
+  dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('dialog').classList.add('careerDialog');
+  $('speaker').textContent='TVŮJ ŽIVOT / TVOJE VOLBA';$('dialogTitle').textContent='Dvě cesty Prahou';
+  $('dialogText').textContent=!complete?'Nejdřív dokonči úvodních 5 příběhových úkolů. Obě nové série si můžeš prohlédnout už teď.':activeContract?'Nejdřív dokonči nebo zruš zásilku v Kontaktech (J).':'Každá mise má 3 zastávky a odměnu po dokončení. Obě cesty lze střídat. Postup se ukládá na tomto zařízení.';
+  $('choices').replaceChildren();
+  if(careerState.active){
+    const q=careerSystem.current(careerState),t=careerSystem.target(careerState);
+    careerButton('POKRAČOVAT · '+q.title+' · krok '+(careerState.active.stage+1)+'/3 · '+t.label,closeContracts);
+    careerButton('Zrušit aktuální misi · bez odměny',()=>{careerState.active=null;closeContracts();saveProgress();updateHud();notify('Mise zrušena. Můžeš ji přijmout znovu od začátku.');});
+  }
+  for(const key of ['dealer','worker']){
+    const next=careerSystem.catalog[key][careerState.done[key]];
+    const label=(key==='dealer'?'ULICE · Dealer':'PRÁCE · Poctivá cesta')+' · '+careerState.done[key]+'/20';
+    careerButton(label,()=>{closeContracts();openCareer(key);}).className='careerTab'+(key===track?' selected':'');
+    if(track!==key)continue;
+    if(next){
+      const card=document.createElement('p');card.className='careerBrief';card.textContent=next.title+' — '+next.brief+' Odměna '+next.reward.toLocaleString('cs-CZ')+' Kč / '+next.xp+' XP / '+next.rep+' respekt. Level '+next.level+'.';$('choices').append(card);
+      careerButton('Přijmout · '+next.title,()=>acceptCareer(key),!complete||Boolean(activeContract)||Boolean(careerState.active)||playerLevel()<next.level);
+    }
+    for(const q of careerSystem.catalog[key]){
+      const row=document.createElement('div');row.className='questRow';
+      row.textContent=String(q.number).padStart(2,'0')+' / '+q.title+' · '+(q.number<=careerState.done[key]?'HOTOVO':q===next?'DALŠÍ · LVL '+q.level:'ZAMČENO · dokonči předchozí');$('choices').append(row);
+    }
+  }
+  careerButton('Zpět do města · Esc',closeContracts);return true;
+}
+function acceptCareer(track){
+  if(!started||paused||!dialogOpen||interior||!complete||activeContract||!careerSystem.accept(careerState,track,playerLevel()))return false;
+  closeContracts();saveProgress();updateHud();notify('Přijato · '+careerSystem.current(careerState).title);return true;
+}
+function showCareerStage(){
+  if(!started||paused||dialogOpen||interior||player.car||!careerState.active)return false;
+  const target=careerSystem.target(careerState);if(distance(player,target)>=65)return false;
+  careerDialogToken=careerState.active.id+':'+careerState.active.stage;
+  const token=careerDialogToken;
+  dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent=target.speaker;
+  $('dialogTitle').textContent=target.title+' · '+(careerState.active.stage+1)+'/3';$('dialogText').textContent=target.text;$('choices').replaceChildren();
+  careerButton(target.action,()=>finishCareerStage(token));careerButton('Ještě chvíli · zpět',closeContracts);return true;
+}
+function finishCareerStage(token){
+  if(!started||paused||!dialogOpen||interior||player.car||token!==careerDialogToken)return false;
+  const result=careerSystem.advance(careerState,player,token);if(!result)return false;
+  closeContracts();
+  if(result.finished){player.cash+=result.reward;player.rep+=result.rep;awardXp(result.xp);notify(result.title+' · +'+result.reward.toLocaleString('cs-CZ')+' Kč · +'+result.xp+' XP');}
+  else notify('Další krok · '+careerSystem.target(careerState).label);
+  saveProgress();updateHud();return true;
+}

@@ -1,0 +1,38 @@
+/* Street Life website palette. HUD stays transparent; menus get solid contrast. */
+:root{--streetText:#e8eef5;--streetAction:#ff6a3d;--ink:#070b12;--panel:#0d1520;--line:#26384d;--muted:#9fb0c3;--accent:#ff4d1c;color-scheme:dark}
+body{background:var(--ink);color:var(--streetText);font-family:Manrope,Inter,Arial,sans-serif}
+h1,h2,h3,.brand{font-family:'Bebas Neue','Barlow Condensed',Impact,'Arial Narrow',sans-serif;font-weight:400}
+.brand{letter-spacing:-.8px}.brand span,.brand em,.intro h1 i,.eyebrow,.introSide>span,.dialogBox .eyebrow{color:var(--accent)}
+.stats span,.mission p,.xpLine,.cargoLine,#location span,.intro p,.intro small,.introSide p{color:var(--muted)}
+.stats b,.cargoLine b,.intro .tagline{color:#e8eef5}#heat,.objective>span:first-child,.objective b{color:#ff815d}
+.eyebrow{font-size:10px;letter-spacing:2.8px;line-height:1.5}.mission h2{font-size:29px;line-height:1.05;letter-spacing:.3px}
+.mission{width:285px;gap:10px}.mission p{color:#d0dbe6}.objective{border-color:#8c9aaa55}.xpTrack{background:#b4c4d433}.xpTrack i{background:var(--accent)}
+.mission #careers,.mission #contracts{grid-column:auto;width:100%;font-weight:700;color:#ff815d}
+button,input{font-family:inherit}button{border:1px solid var(--line);background:#111d2b;color:#e8eef5;min-height:44px;border-radius:3px;transition:background .15s,border-color .15s}
+button:hover{background:#1c2c40;border-color:#ff6a3d}button:focus-visible,input:focus-visible{outline:2px solid #ff815d;outline-offset:3px}button:disabled{opacity:.5}
+.mission button{background:transparent;border:0;min-height:32px;color:#ff815d}.mission button:hover{background:transparent;color:#ffa88e}
+#menu{background:linear-gradient(90deg,#070b12f7 0%,#070b12ed 38%,#070b1290 68%,#070b1220 100%);overflow:auto;padding:clamp(24px,5vw,80px);gap:50px}
+.intro{width:min(460px,100%);flex-shrink:0}.intro h1{font-size:clamp(72px,9vw,128px);margin:20px 0;line-height:.82;letter-spacing:-2px}.intro .tagline{font-size:19px}
+.intro button{width:100%;margin:10px 0;padding:13px 18px;color:#e8eef5;background:#0d1520;border:1px solid var(--line)}
+.intro button:hover{background:#1c2a3b;border-color:#ff6a3d}
+.intro #start,#accountSubmit{background:#d4360c;color:#fff;border:1px solid #ff6a3d;font-weight:800;letter-spacing:1.5px;padding:16px 20px}.intro #start:hover,#accountSubmit:hover{background:#ea4a1e}
+.intro label,.accountPanel label{color:#b7c4d3;font-size:11px;letter-spacing:1.8px}
+#characterName,.accountPanel input{color:#e8eef5;background:#070b12;border:1px solid #3a4b60;border-radius:3px;min-height:46px;padding:12px 14px}
+#characterIdentity{overflow-wrap:anywhere;color:#9fb0c3}#characterError,#accountStatus{color:#ffb294}
+.introSide{border-color:#ff4d1c66;bottom:18vh}.introSide h3{font-size:clamp(38px,5vw,70px);margin:22px 0}.introSide p{letter-spacing:1px}
+#dialog,#scoreboard,#accountOverlay{background:#070b12ba;backdrop-filter:blur(8px);padding:24px}
+.dialogBox,.accountPanel{background:var(--panel);color:#e8eef5;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:5px;box-shadow:0 24px 90px #0008;max-height:calc(100dvh - 48px);overflow:auto;padding:28px;width:min(600px,100%)}
+.dialogBox h2,.accountPanel h2{font-size:36px;line-height:1.1;margin:12px 0}.dialogBox p,.accountPanel p{color:#b7c4d3;line-height:1.7}
+.dialogBox button{padding:12px 16px}.dialogBox .substanceCard span{color:#b7c4d3}.scorePanel{width:min(1000px,100%)}.scorePanel th{color:#ff815d}.scorePanel td{color:#e8eef5;border-color:#26384d}
+.accountTabs button,.accountTabs button.active{color:#e8eef5}.accountTabs button.active{border-color:var(--accent);background:#ff4d1c18}
+#dialog.careerDialog .dialogBox{width:min(700px,100%)}.careerTab{letter-spacing:1px;font-weight:700}.careerTab.selected{border-left:3px solid var(--accent);background:#ff4d1c10}
+.careerBrief{padding:14px;border-left:2px solid #ff4d1c;margin:16px 0}.questRow{padding:11px 4px;border-bottom:1px solid #1c2a3b;font-size:12px;line-height:1.5;color:#b7c4d3}
+#toast{color:#ffe1d7}#prompt{color:#fff}footer,kbd{color:#b7c4d3}#pause,footer button{color:#ff815d;border-color:#ff6a3d66}
+#studioTag{color:#9fb0c3!important;letter-spacing:1.5px}#betaBadge{background:#ff4d1c!important;color:#070b12!important;border-color:#ff815d!important;font-weight:900;letter-spacing:2px;pointer-events:none}
+.touch button{background:#0d1520dd;color:#e8eef5;border-color:#52657b}.touch button:active{background:#d4360c}
+@media(max-width:1000px){.mission{width:240px}.mission h2{font-size:24px}.stats{gap:10px 14px}.introSide{right:5vw}}
+@media(max-width:800px){.mission{width:min(220px,48vw);gap:6px}.mission h2{font-size:22px}.mission button{min-height:36px}#menu{padding:24px}.intro h1{font-size:76px}.introSide{display:none}.dialogBox,.accountPanel{padding:20px}.dialogBox h2,.accountPanel h2{font-size:29px}}
+@media(max-height:650px){#menu{align-items:flex-start}.intro h1{font-size:66px;margin:16px 0}.intro p{margin:10px 0}.mission{top:88px;gap:5px}.mission h2{font-size:22px}}
+@media(prefers-reduced-motion:reduce){button,.xpTrack i{transition:none}}
+.accountTabs [aria-pressed=true]{background:#ff4d1c18;border-color:#ff6a3d}
+.accountPanel input:focus{outline-color:#ff815d}
