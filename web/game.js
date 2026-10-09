@@ -4,6 +4,26 @@ const $=id=>document.getElementById(id),keys=new Set(),size=19200,block=400,grid
 let w=innerWidth,h=innerHeight,dpr=1,started=false,paused=false,dialogOpen=false,last=0,time=0,toastTimer=0,audio=null,sound=false;
 const player={x:255,y:350,angle:0,car:null,cash:1200,rep:0,heat:0,health:100,step:0,xp:0};
 const camera={x:player.x,y:player.y};
+let viewZoom = 1;
+let cityMapZoom = 1;
+let nearbyMapZoom = 12;
+function changeZoom(current, delta, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, current * Math.exp(-Math.max(-300, Math.min(300, delta)) * .0015)));
+}
+addEventListener('wheel', event => {
+  if (!started || paused || dialogOpen || event.ctrlKey || event.target?.closest?.('button, input, textarea, select, .overlay, .mission, header, footer')) return;
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? h : 1);
+  if (!Number.isFinite(delta) || delta === 0) return;
+  const mapWidth = w < 800 ? 115 : 190;
+  const mapX = w - mapWidth - 26, mapY = h - mapWidth - 76;
+  const overMap = !interior && event.clientX >= mapX && event.clientX <= mapX + mapWidth && event.clientY >= mapY && event.clientY <= mapY + mapWidth;
+  event.preventDefault();
+  if (overMap) {
+    if (mapExpanded) cityMapZoom = changeZoom(cityMapZoom, delta, 1, 32);
+    else nearbyMapZoom = changeZoom(nearbyMapZoom, delta, 2, 48);
+  } else viewZoom = changeZoom(viewZoom, delta, .65, 2.2);
+}, { passive: false });
+
 let interior=null;
 let lifeState = lifeSystem.create();
 const lifeEntitlements = [];
@@ -249,7 +269,7 @@ for(const c of cars){if(interior||c===player.car||c.parked)continue;if(c.transit
 for(const p of people){if(p.role&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=(p.x+p.dir*18*dt+size)%size;else p.y=(p.y+p.dir*18*dt+size)%size}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}}}
 function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill()}
 function rounded(x,y,width,height,radius,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,width,height,radius);ctx.fill()}
-function visible(x,y,margin=250){const scale=w<800?1.04:1.32,cx=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
+function visible(x,y,margin=250){const scale=(w<800?1.04:1.32)*viewZoom,cx=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
 function drawBuilding(b){
   const elevation=24+b.height*1.1,dx=-elevation*.22,dy=-elevation*.5;
   polygon([[b.x,b.y],[b.x+b.w,b.y],[b.x+b.w+elevation*.9,b.y+b.h+elevation*.8],[b.x+elevation*.9,b.y+b.h+elevation*.8]],'#00080f65');
@@ -353,7 +373,7 @@ function drawPerson(x,y,angle,color,phase=0,isPlayer=false){
 }
 const terrainTiles=new Map();
 function drawTerrain(){
-  const scale=w<800?1.04:1.32;
+  const scale=(w<800?1.04:1.32)*viewZoom;
   const centerX=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x));
   const centerY=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));
   const startCol=Math.max(0,Math.floor((centerX-w/(2*scale))/block));
@@ -438,7 +458,7 @@ function drawStreetProps(){
 }
 function renderLegacy(){if(interior){renderInterior2d();return;}
   ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#0b1723');ctx.save();
-  const scale=w<800?1.04:1.32;
+  const scale=(w<800?1.04:1.32)*viewZoom;
   const viewX=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x));
   const viewY=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));
   ctx.translate(w/2-viewX*scale,h/2-viewY*scale);ctx.scale(scale,scale);
@@ -462,8 +482,8 @@ function drawDistrictAtmosphere(){
   const haze=ctx.createLinearGradient(0,0,0,h);haze.addColorStop(0,'#9fb8dc0b');haze.addColorStop(.5,'#9fb8dc00');haze.addColorStop(1,'#030c1615');rect(0,0,w,h,haze);
 }
 function drawMap(){
-  const mw=w<800?115:190,x=w-mw-26,y=h-mw-76,zoom=mapExpanded?1:12;
-  const span=size/zoom,s=mw/span,cx=mapExpanded?size/2:Math.max(span/2,Math.min(size-span/2,player.x)),cy=mapExpanded?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
+  const mw=w<800?115:190,x=w-mw-26,y=h-mw-76,zoom=mapExpanded?cityMapZoom:nearbyMapZoom;
+  const span=size/zoom,s=mw/span,cx=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.x)),cy=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
   rect(x-8,y-8,mw+16,mw+16,'#080f18ed');ctx.save();ctx.beginPath();ctx.rect(x,y,mw,mw);ctx.clip();ctx.translate(x-(cx-span/2)*s,y-(cy-span/2)*s);
   rect(0,0,size*s,size*s,'#24353e');
   for(const area of cityBlocks){rect(area.x*s,area.y*s,block*s,block*s,area.type==='park'?'#365c48':area.type==='modern'?'#2e495a':area.type==='industrial'?'#4c4440':'#2c3840')}
@@ -561,12 +581,12 @@ window.streetLifeScene={size,block,gridSize,buildingBuckets,districtAt,buildings
 function render(){
   if(!window.streetLifeRenderer){renderLegacy();return;}
   try{
-    window.streetLifeRenderer.render({player,camera,time,interior,target:targetAvailable()?mission():null});
+    window.streetLifeRenderer.render({player,camera,time,interior,zoom:viewZoom,target:targetAvailable()?mission():null});
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);if(!interior)drawMap();
     if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
   }catch(error){console.error('3D frame failed',error);window.streetLifeRenderer=null;document.querySelector('#world3d')?.remove();$('renderMode').textContent='2D';notify('3D vykreslování selhalo. Pokračuje 2D verze.');renderLegacy();}
 }
-function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth);ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
+function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
 function isLifeService() {
   return Boolean(interior && interior.floor === 0 && ['UBYTOVNA', 'BANKA', 'POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(interior.building.name));
 }

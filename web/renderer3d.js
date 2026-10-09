@@ -257,6 +257,7 @@ function setup(){
   window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);updateCameraSize()});updateCameraSize();
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();window.streetLifeRenderer=null;canvas.style.display='none';source.onError('3D vykreslování bylo přerušeno. Pokračuje 2D verze. Obnov stránku pro návrat do 3D.');});
   window.streetLifeRenderer={render(state){
+    camera.zoom = state.zoom || 1;
     if(state.interior){renderInterior(state);return;}updateCameraSize();
     const center=new THREE.Vector3(state.camera.x*unit,0,state.camera.y*unit);
     camera.position.set(center.x+18,64,center.z+40);camera.lookAt(center.x,0,center.z);
