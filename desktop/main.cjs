@@ -84,7 +84,7 @@ async function createWindow() {
 
 ipcMain.handle('players:register', async (event, profile) => {
   if (smoke || event.sender !== gameWindow?.webContents || event.senderFrame?.url !== 'game://local/index.html') return { registered: false };
-  if (!profile || typeof profile.name !== 'string' || profile.name.length > 24 || !/^LIB-[a-f0-9]{32}$/.test(profile.id) || !/^[a-f0-9]{64}$/.test(profile.token)) return { registered: false };
+  if (!profile || typeof profile.name !== 'string' || profile.name.length > 40 || !/^LIB-[a-f0-9]{32}$/.test(profile.id) || !/^[a-f0-9]{64}$/.test(profile.token)) return { registered: false };
   try {
     const endpoint = new URL(process.env.LIB_REGISTRY_URL || 'http://127.0.0.1:8789');
     if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(endpoint.hostname))) throw Error('Registry requires HTTPS');

@@ -35,7 +35,7 @@ def register(payload):
         raise ValueError("Invalid player ID")
     if not isinstance(token, str) or not re.fullmatch(r"[a-f0-9]{64}", token):
         raise ValueError("Invalid registration token")
-    if not 3 <= len(name) <= 24 or not all(c.isalnum() or c in " _'-" for c in name):
+    if not 3 <= len(name) <= 40 or not all(c.isalnum() or c in " _'-" for c in name):
         raise ValueError("Invalid character name")
     platform, version = payload.get("platform"), payload.get("version")
     if platform not in ("win32", "linux", "darwin") or not isinstance(version, str) or not re.fullmatch(r"[0-9A-Za-z.+-]{1,32}", version):

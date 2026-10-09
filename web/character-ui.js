@@ -11,20 +11,19 @@
   function showIdentity() {
     identity.textContent = character ? character.name + ' · ' + character.id : 'Vytvoř si postavu';
     input.value = character?.name || '';
-    input.disabled = Boolean(character);
+    input.disabled = false;
     startButton.textContent = character ? 'POKRAČOVAT V NOCI ↗' : 'VYTVOŘIT POSTAVU A HRÁT ↗';
   }
   startButton.onclick = event => {
-    if (!character) {
-      try {
-        const created = characterSystem.create(input.value, window.crypto);
-        localStorage.setItem(storageKey, JSON.stringify(created));
-        character = created;
-      } catch (cause) {
-        error.textContent = cause.message || 'Postavu se nepodařilo uložit.';
-        input.focus();
-        return;
-      }
+    try {
+      if (!characterSystem.validName(input.value)) throw new Error('Jméno musí mít 3–40 znaků: písmena, čísla, mezery, pomlčku nebo apostrof.');
+      const updated = character ? { ...character, name: characterSystem.normalizeName(input.value) } : characterSystem.create(input.value, window.crypto);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      character = updated;
+    } catch (cause) {
+      error.textContent = cause.message || 'Postavu se nepodařilo uložit.';
+      input.focus();
+      return;
     }
     error.textContent = '';
     showIdentity();
