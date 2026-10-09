@@ -9,7 +9,7 @@
     "desktop:start": "electron .",
     "desktop:smoke": "electron . --smoke",
     "desktop:build": "electron-builder --win --x64 --dir --publish never",
-    "test": "node tests/gameplay.cjs && node tests/updater.cjs && node tests/character.cjs",
+    "test": "node tests/gameplay.cjs && node tests/updater.cjs && node tests/character.cjs && node tests/prague-geo.cjs",
     "desktop:installer": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
