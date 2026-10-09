@@ -29,6 +29,19 @@
     error.textContent = '';
     showIdentity();
     originalStart(event);
+    if (window.playerRegistry) {
+      try {
+        let token = localStorage.getItem('street-life-registry-token-v1');
+        if (!/^[a-f0-9]{64}$/.test(token || '')) {
+          const bytes = window.crypto.getRandomValues(new Uint8Array(32));
+          token = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+          localStorage.setItem('street-life-registry-token-v1', token);
+        }
+        window.playerRegistry.register({ ...character, token }).then(result => {
+          identity.textContent = character.name + ' · ' + character.id + (result.registered ? ' · registrováno na serveru' : ' · offline registrace');
+        }).catch(() => {});
+      } catch {}
+    }
   };
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); startButton.click(); }

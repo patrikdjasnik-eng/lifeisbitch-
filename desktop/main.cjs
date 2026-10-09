@@ -31,7 +31,7 @@ async function createWindow() {
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
     title: 'Life Is Bitch · Betonové sny', backgroundColor: '#080c11',
     show: true, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'),
-    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    webPreferences: { preload: path.join(__dirname, 'game-preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true }
   });
   gameWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   gameWindow.webContents.on('will-navigate', (event, url) => {
@@ -52,6 +52,7 @@ async function createWindow() {
   gameWindow.show();
   if (smoke) {
     const result = await gameWindow.webContents.executeJavaScript(`new Promise(resolve => {
+      if (document.getElementById('characterName')) document.getElementById('characterName').value = 'Smoke Tester';
       document.getElementById('start').click();
       setTimeout(() => resolve({
         scene: !!window.streetLifeScene,
@@ -80,6 +81,22 @@ async function createWindow() {
     app.exit(result.scene && result.started && result.canvas && result.services ? 0 : 1);
   }
 }
+
+ipcMain.handle('players:register', async (event, profile) => {
+  if (smoke || event.sender !== gameWindow?.webContents || event.senderFrame?.url !== 'game://local/index.html') return { registered: false };
+  if (!profile || typeof profile.name !== 'string' || profile.name.length > 24 || !/^LIB-[a-f0-9]{32}$/.test(profile.id) || !/^[a-f0-9]{64}$/.test(profile.token)) return { registered: false };
+  try {
+    const endpoint = new URL(process.env.LIB_REGISTRY_URL || 'http://127.0.0.1:8789');
+    if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(endpoint.hostname))) throw Error('Registry requires HTTPS');
+    endpoint.pathname = '/api/players/register'; endpoint.search = ''; endpoint.hash = '';
+    const response = await fetch(endpoint, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: profile.id, name: profile.name, token: profile.token, platform: process.platform, version: app.getVersion() })
+    });
+    return { registered: response.ok };
+  } catch { return { registered: false }; }
+});
 
 app.whenReady().then(async () => {
   protocol.handle('game', async request => {
