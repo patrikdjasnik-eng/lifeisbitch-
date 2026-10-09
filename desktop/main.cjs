@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
     catch (error) { console.error(error); return new Response('Not found', { status: 404 }); }
   });
   gameRoot = path.join(app.getAppPath(), 'web');
-  if (smoke) await createWindow();
+  if (smoke || process.argv.includes('--direct-play')) await createWindow();
   else await createLauncher();
 }).catch(error => {
   log(error.stack || error.message);
