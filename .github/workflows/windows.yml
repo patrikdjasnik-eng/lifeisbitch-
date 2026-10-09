@@ -5,7 +5,7 @@ on:
     paths: ['desktop/**', 'web/**', 'tests/**', 'package*.json', '.github/workflows/windows.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-latest
@@ -45,9 +45,47 @@ jobs:
           if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
           if ($game.ExitCode -ne 0) { throw "Installed game exit: $($game.ExitCode)" }
           Write-Output 'PASS: installed game, desktop shortcut, purchases and MHD'
-          Compress-Archive -Path package/* -DestinationPath Life-Is-Bitch-Windows-0.1.3.zip
+          Compress-Archive -Path package/* -DestinationPath Life-Is-Bitch-Windows-0.1.4.zip
       - uses: actions/upload-artifact@v4
         with:
           name: life-is-bitch-windows
-          path: Life-Is-Bitch-Windows-0.1.3.zip
+          path: Life-Is-Bitch-Windows-0.1.4.zip
           if-no-files-found: error
+
+      - name: Build one-click EXE installer
+        run: npm run desktop:installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify EXE installer and shortcut
+        shell: pwsh
+        run: |
+          $setup = Get-Item windows-dist/Life-Is-Bitch-Setup-0.1.4.exe
+          $installed = Join-Path $env:LOCALAPPDATA 'Programs/life-is-bitch'
+          $process = Start-Process $setup.FullName -ArgumentList '/S' -PassThru
+          if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'Installer timeout' }
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $exe = Join-Path $installed 'Life Is Bitch.exe'
+          if (-not (Test-Path $exe)) { throw 'Installed EXE missing' }
+          $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Life Is Bitch.lnk'
+          $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+          if ($shortcut.TargetPath -ne $exe) { throw 'Installer shortcut target mismatch' }
+          $game = Start-Process $exe -ArgumentList '--smoke' -PassThru
+          if (-not $game.WaitForExit(45000)) { $game.Kill(); throw 'Installed game timeout' }
+          if ($game.ExitCode -ne 0) { throw 'Installed game failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: life-is-bitch-setup
+          path: windows-dist/Life-Is-Bitch-Setup-0.1.4.exe
+          if-no-files-found: error
+      - name: Publish verified installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.1.4 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create v0.1.4 --target "${{ github.sha }}" --title "Life Is Bitch Beta 0.1.4" --notes "Windows x64: one-click installation, desktop icon and launcher with game updates. Includes named characters, local player registry integration, mouse wheel zoom, boundary fog and updated HUD."
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload v0.1.4 windows-dist/Life-Is-Bitch-Setup-0.1.4.exe --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
