@@ -1,10 +1,14 @@
-const { app, BrowserWindow, protocol, net, dialog } = require('electron');
+const { app, BrowserWindow, protocol, net, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'game', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const smoke = process.argv.includes('--smoke');
 let gameWindow;
+let launcherWindow;
+let updateBusy = false;
+let gameRoot;
+const updater = require('./updater.cjs');
 const fs = require('node:fs');
 function log(message) {
   try { const folder = app.getPath('userData'); fs.mkdirSync(folder, { recursive: true }); fs.appendFileSync(path.join(folder, 'startup.log'), new Date().toISOString() + ' ' + message + '\n'); } catch (error) { console.error(error); }
@@ -15,7 +19,7 @@ process.on('uncaughtException', error => { log(error.stack || error.message); if
 function assetPath(url) {
   const request = new URL(url);
   if (request.host !== 'local') throw new Error('Unknown game host');
-  const root = path.join(app.getAppPath(), 'web');
+  const root = gameRoot || path.join(app.getAppPath(), 'web');
   const file = path.resolve(root, '.' + decodeURIComponent(request.pathname === '/' ? '/index.html' : request.pathname));
   const relative = path.relative(root, file);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Invalid asset path');
@@ -82,7 +86,9 @@ app.whenReady().then(async () => {
     try { return await net.fetch(pathToFileURL(assetPath(request.url)).toString()); }
     catch (error) { console.error(error); return new Response('Not found', { status: 404 }); }
   });
-  await createWindow();
+  gameRoot = path.join(app.getAppPath(), 'web');
+  if (smoke) await createWindow();
+  else await createLauncher();
 }).catch(error => {
   log(error.stack || error.message);
   console.error(error);
@@ -91,3 +97,36 @@ app.whenReady().then(async () => {
 });
 app.on('window-all-closed', () => app.quit());
 if (smoke) setTimeout(() => app.exit(1), 30000).unref();
+
+async function createLauncher() {
+  const folder = path.join(app.getPath('userData'), 'updates-v1');
+  const current = await updater.installed(folder);
+  if (current) gameRoot = current.root;
+  launcherWindow = new BrowserWindow({ width: 1000, height: 700, minWidth: 850, minHeight: 650, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'), webPreferences: { preload: path.join(__dirname, 'launcher-preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+  launcherWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  launcherWindow.webContents.on('will-navigate', event => event.preventDefault());
+  const trusted = event => event.sender === launcherWindow?.webContents;
+  async function checkUpdate() {
+    if (updateBusy) return;
+    updateBusy = true;
+    const report = (text, progress, busy = true, version = '') => {
+      if (!launcherWindow?.isDestroyed()) launcherWindow.webContents.send('launcher:status', { text, progress, busy, version });
+    };
+    try {
+      const result = await updater.update(folder, report);
+      gameRoot = result.root;
+      report('Hra je připravená.', 100, false, result.sha.slice(0, 7));
+    } catch (error) {
+      log('Update failed: ' + error.message);
+      report('Aktualizace není dostupná. Můžeš hrát poslední nainstalovanou verzi offline.', 0, false);
+    } finally { updateBusy = false; }
+  }
+  ipcMain.handle('launcher:check', async event => { if (!trusted(event)) throw Error('Unknown sender'); await checkUpdate(); });
+  ipcMain.handle('launcher:play', async event => {
+    if (!trusted(event) || updateBusy) return;
+    await createWindow();
+    launcherWindow.close();
+  });
+  await launcherWindow.loadFile(path.join(__dirname, 'launcher.html'));
+  await checkUpdate();
+}

@@ -39,3 +39,7 @@ Lokální vývoj: Node.js 22, npm install, npm run desktop:start. Sestavení na 
 Oranžové písmo a růžové akce podle vybraného náhledu. Pozadí textu v úvodním menu a HUD jsou průhledná; mise se při otevřeném menu skryje, aby se nepřekrývala s titulkem. Dialogy služeb mají čitelnou vlastní plochu. ImageGen použit pro vizuální předlohu, živé UI implementované v CSS. / Orange typography, magenta actions and transparent menu/HUD backgrounds; hide mission HUD behind the start menu.
 
 Ukládání času každých 10 sekund aktivní hry a při pagehide zabraňuje ztrátě celého rozehraného dne. Gameplay testy ověřeny před začleněním do main.
+
+## Launcher 0.1.3 / Automatické herní aktualizace
+
+Tmavě modré UI, oranžový titulek, růžové akce, ukazatel stahování. Automatická kontrola main, stažení web do staging, ověření Git blob hashů, atomické přepnutí markeru, offline fallback, izolované IPC. Pouze herní web aktualizace; launcher/Electron přes nový instalátor. Testy updateru zahrnují přerušenou aktualizaci, offline, traversal, symlinky a poškozenou cache. Windows runtime/build nutné ověřit v CI.
