@@ -1,1 +1,20 @@
 #accountOverlay{z-index:110;justify-content:center;background:#070d18d9;backdrop-filter:blur(10px);padding:20px}.accountPanel{width:min(500px,95vw);max-height:90vh;overflow:auto;padding:28px;background:linear-gradient(145deg,#172332,#0c1420);border:1px solid #a367df66;border-radius:16px;color:#eaf0f6;box-shadow:0 20px 80px #0008}.accountPanel h2{margin:14px 0}.accountPanel p{font-size:13px;line-height:1.5;color:#b8c5d4}.accountPanel label{display:block;font-size:12px;margin:14px 0 6px}.accountPanel input:not([type=checkbox]){width:100%;padding:12px;background:#080f19;color:#fff;border:1px solid #667991;border-radius:7px;font:inherit}.accountPanel input:focus{outline:2px solid #ba81ff;outline-offset:2px}.accountPanel button{border-radius:7px}.accountTabs{display:flex;gap:6px;margin:18px 0}.accountTabs button{flex:1;font-size:12px;padding:10px}.accountTabs [aria-pressed=true]{background:#754aa5}.passwordField{display:flex;gap:6px}#accountSubmit,#accountClose,#accountLogout{width:100%;margin-top:10px}#accountSubmit{background:#ad76e1;color:#0b111a}#accountStatus{min-height:20px;color:#ebbc71}#recoveryCode{display:block;overflow-wrap:anywhere;user-select:all;padding:12px;background:#080f19;font-size:15px;color:#a2e7d9}#accountButton{width:100%;padding:10px;margin:12px 0 0;font-size:12px}#studioTag{position:fixed;bottom:4px;right:26px;z-index:6;font:10px Inter,Arial,sans-serif;letter-spacing:1px;color:#b9a5c9;text-shadow:0 1px 4px #000;pointer-events:none}@media(max-width:800px){#studioTag{right:12px;font-size:8px}.accountPanel{padding:20px}#menu{overflow-y:auto}.intro h1{font-size:64px}.intro .tagline{font-size:16px}}#menu{overflow-y:auto}.intro{padding:24px 0}.accountPanel [hidden]{display:none!important}
+
+#betaBadge {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 22px));
+  z-index: 200;
+  padding: 5px 10px;
+  border: 1px solid #c792ff99;
+  border-radius: 5px;
+  background: #111827b3;
+  color: #e7ccff;
+  font: 800 11px Inter, Arial, sans-serif;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+@media (max-width: 800px), (pointer: coarse) {
+  #betaBadge { right: auto; left: max(14px, env(safe-area-inset-left)); bottom: max(80px, calc(env(safe-area-inset-bottom) + 80px)); }
+}
