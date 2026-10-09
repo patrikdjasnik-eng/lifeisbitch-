@@ -38,10 +38,6 @@ const civicPlaces = new Map([
   ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY']
 ]);
 const parkingLots = [{col:4,row:1},{col:3,row:2},{col:11,row:18}];
-const mapPointsOfInterest = [
-  {id:'market',name:'Potraviny',symbol:'P',color:'#7adb9e',col:1,row:2},
-  {id:'gunshop',name:'Gun Shop',symbol:'G',color:'#ed9c66',col:5,row:4},
-  {id:'bank',name:'Banka',symbol:'
 function districtAt(x,y){
   if(y>=14400)return {name:'HOLEŠOVICE · DOKY',color:'#dba977',style:'industrial'};
   if(x>=12800)return {name:'NOVÉ MĚSTO',color:'#72d6f5',style:'modern'};
@@ -512,7 +508,6 @@ function drawMap(){
   for(const area of cityBlocks){rect(area.x*s,area.y*s,block*s,block*s,area.type==='park'?'#365c48':area.type==='modern'?'#2e495a':area.type==='industrial'?'#4c4440':'#2c3840')}
   for(let i=0;i<gridSize;i++){rect(i*block*s,0,52*s,size*s,'#69787f');rect(0,i*block*s,size*s,52*s,'#69787f')}
   for(const b of buildings)rect(b.x*s,b.y*s,b.w*s,b.h*s,'#0d1b28');
-  drawMapPoints(s,mapExpanded);
   if(targetAvailable()){ctx.fillStyle='#c5f46b';ctx.beginPath();ctx.arc(mission().x*s,mission().y*s,4,0,7);ctx.fill()}
   for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
   if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
