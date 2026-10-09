@@ -1,7 +1,7 @@
 {
   "name": "life-is-bitch",
-  "version": "0.1.3",
-  "description": "Street Life: Betonov\u00e9 sny \u2014 offline game",
+  "version": "0.1.4",
+  "description": "Street Life: Betonové sny — offline game",
   "author": "Rabbit Hollow",
   "license": "UNLICENSED",
   "main": "desktop/main.cjs",
@@ -9,7 +9,8 @@
     "desktop:start": "electron .",
     "desktop:smoke": "electron . --smoke",
     "desktop:build": "electron-builder --win --x64 --dir --publish never",
-    "test": "node tests/gameplay.cjs && node tests/updater.cjs"
+    "test": "node tests/gameplay.cjs && node tests/updater.cjs && node tests/character.cjs",
+    "desktop:installer": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "44.7.0",
@@ -39,14 +40,17 @@
       "icon": "desktop/icon-beta.ico"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "installerIcon": "desktop/icon-beta.ico",
       "uninstallerIcon": "desktop/icon-beta.ico",
-      "installerHeaderIcon": "desktop/icon-beta.ico"
+      "installerHeaderIcon": "desktop/icon-beta.ico",
+      "runAfterFinish": true,
+      "shortcutName": "Life Is Bitch",
+      "deleteAppDataOnUninstall": false
     },
     "artifactName": "Life-Is-Bitch-Setup-${version}.${ext}",
     "portable": {
