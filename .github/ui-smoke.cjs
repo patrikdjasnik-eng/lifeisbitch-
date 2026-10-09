@@ -1,0 +1,27 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+(async()=>{
+ fs.mkdirSync('ui-reports',{recursive:true});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--enable-unsafe-swiftshader']});
+ const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(90000);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8766/web/',{waitUntil:'load',timeout:120000});await page.evaluate(()=>document.fonts.ready);
+ await page.screenshot({path:'ui-reports/01-menu.png'});
+ await page.fill('#characterName','Žižkov Tester');await page.click('#start');
+ await page.evaluate(()=>{complete=true;player.xp=3000;updateHud();});await page.click('#careers');
+ await page.getByRole('button',{name:'PRÁCE · Poctivá cesta · 0/20',exact:true}).click();
+ await page.screenshot({path:'ui-reports/02-careers.png'});
+ await page.getByRole('button',{name:'Přijmout · První výplata',exact:true}).click();
+ await page.screenshot({path:'ui-reports/03-hud.png'});
+ await page.evaluate(()=>{player.x=mission().x;player.y=mission().y;interact();});
+ await page.getByRole('button',{name:'Převzít doporučení od Dany',exact:true}).click();
+ await page.reload({waitUntil:'load'});assert.equal(await page.evaluate(()=>careerState.active.stage),1);
+ await page.click('#start');await page.keyboard.press('Tab');await page.screenshot({path:'ui-reports/04-scoreboard.png'});await page.keyboard.press('Escape');
+ await page.evaluate(()=>{if(!paused)togglePause();});await page.click('#accountButton');await page.screenshot({path:'ui-reports/05-account.png'});await page.click('#accountClose');
+ await page.setViewportSize({width:844,height:390});await page.addStyleTag({path:'android/app/src/main/mobile/mobile.css'});await page.addScriptTag({path:'android/app/src/main/mobile/mobile.js'});
+ await page.screenshot({path:'ui-reports/06-mobile-menu.png'});await page.click('#start');await page.screenshot({path:'ui-reports/07-mobile-hud.png'});
+ assert.equal(await page.locator('#betaBadge').isVisible(),true);
+ assert.deepEqual(errors,[]);console.log('PASS: browser name/start, career menu, objective interaction, reload persistence, scoreboard, account, landscape mobile and BETA.');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
