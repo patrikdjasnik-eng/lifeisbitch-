@@ -32,5 +32,13 @@ const fs=require('node:fs');
 
  assert.equal(await page.locator('#betaBadge').isVisible(),true);
  assert.deepEqual(errors,[]);console.log('PASS: 2D fallback browser name/start, career menu, objective interaction, reload persistence, scoreboard, account, landscape mobile and BETA.');
+ 
+ const launcher=await browser.newPage({viewport:{width:1000,height:700}});
+ await launcher.addInitScript(()=>{window.launcher={onStatus:cb=>cb({text:'Hra je připravená.',progress:100,busy:false,version:'BETA'}),check:async()=>{},play:async()=>{}};});
+ await launcher.goto('http://127.0.0.1:8766/desktop/launcher.html');
+ await launcher.evaluate(()=>document.fonts.ready);
+ assert.equal(await launcher.locator('#play').isEnabled(),true);
+ await launcher.screenshot({path:'ui-reports/08-launcher.png'});
+
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
