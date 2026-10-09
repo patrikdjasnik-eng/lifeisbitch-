@@ -1,7 +1,7 @@
 {
   "name": "life-is-bitch",
-  "version": "0.1.5",
-  "description": "Street Life: Betonové sny — offline game",
+  "version": "0.1.6",
+  "description": "Life Is Bitch: Betonové sny — offline game",
   "author": "Rabbit Hollow",
   "license": "UNLICENSED",
   "main": "desktop/main.cjs",
