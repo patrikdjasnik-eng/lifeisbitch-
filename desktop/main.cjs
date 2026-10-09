@@ -2,7 +2,7 @@ const { app, BrowserWindow, protocol, net, dialog, ipcMain } = require('electron
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-protocol.registerSchemesAsPrivileged([{ scheme: 'game', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'game', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 const smoke = process.argv.includes('--smoke');
 let gameWindow;
 let launcherWindow;
