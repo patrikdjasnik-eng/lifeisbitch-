@@ -1,7 +1,7 @@
 'use strict';
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id),keys=new Set(),size=19200,block=400,gridSize=48;
-let w=innerWidth,h=innerHeight,dpr=1,started=false,paused=false,dialogOpen=false,last=0,time=0,toastTimer=0,audio=null,sound=false;
+let w=innerWidth,h=innerHeight,dpr=1,started=false,paused=false,dialogOpen=false,last=0,time=0,toastTimer=0;
 const player={x:255,y:350,angle:0,car:null,cash:1200,rep:0,heat:0,health:100,step:0,xp:0};
 const camera={x:player.x,y:player.y};
 let viewZoom = 1;
@@ -216,7 +216,6 @@ function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').c
 $('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify(careerState.active?'Pokračuješ · '+careerSystem.current(careerState).title:complete?'Nový den · Kariéra (K)':'První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
 addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='k')openCareer();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key)}$('touchE').onclick=interact;$('touchF').onclick=enterCar;
-$('sound').onclick=()=>{try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();sound=!sound;$('sound').textContent='ZVUK: '+(sound?'ZAPNUTO':'VYPNUTO');if(sound){const buffer=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.035;const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();filter.type='lowpass';filter.frequency.value=850;source.buffer=buffer;source.loop=true;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();audio.rainGain=gain}else audio.suspend()}catch{notify('Zvuk není v tomto prohlížeči dostupný.')}};
 function resize(){backgroundDrawn=false;w=innerWidth;h=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
 function rect(x,y,ww,hh,color){ctx.fillStyle=color;ctx.fillRect(x,y,ww,hh)}
 function glow(x,y,r,color){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
@@ -744,3 +743,4 @@ function finishCareerStage(token){
   else notify('Další krok · '+careerSystem.target(careerState).label);
   saveProgress();updateHud();return true;
 }
+
