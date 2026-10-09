@@ -359,6 +359,31 @@ function renderInterior(state){
       const plaque=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.55),new THREE.MeshBasicMaterial({map:sign,transparent:true,side:THREE.DoubleSide}));
       plaque.position.set(width*.29,1.9,depth*.35);interiorGroup.add(plaque);
     }
+    if (room.floor === 0) {
+      for (const npc of room.npcs || []) {
+        if (room.building.name === 'ŘEZNICTVÍ' && npc.name === 'KAREL') continue;
+        const actor = makePerson(npc.color);
+        scene.remove(actor);
+        actor.position.set(npc.x * unit, .18, npc.y * unit);
+        actor.rotation.y = -npc.angle + Math.PI / 2;
+        interiorGroup.add(actor);
+        const labelTexture = textureCanvas(512, 128, (ctx, w, h) => {
+          ctx.fillStyle = '#172333';
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#f5e9d3';
+          ctx.font = 'bold 38px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(npc.name, w / 2, h / 2);
+        });
+        const label = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.3, .55),
+          new THREE.MeshBasicMaterial({ map: labelTexture, transparent: true, side: THREE.DoubleSide })
+        );
+        label.position.set(npc.x * unit, 2.1, npc.y * unit);
+        interiorGroup.add(label);
+      }
+    }
     interiorScene.add(interiorGroup);interiorKey=key;
   }
   interiorActor.position.set(state.player.x*unit,.18,state.player.y*unit);interiorActor.rotation.y=-state.player.angle+Math.PI/2;interiorActor.userData.limbs.forEach((limb,i)=>limb.rotation.x=Math.sin(state.player.step+i%2*Math.PI)*.45);
