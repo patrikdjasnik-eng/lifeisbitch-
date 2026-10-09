@@ -21,6 +21,15 @@ const fs=require('node:fs');
  await page.evaluate(()=>{if(!paused)togglePause();});await page.click('#accountButton');await page.screenshot({path:'ui-reports/05-account.png'});await page.click('#accountClose');
  await page.setViewportSize({width:844,height:390});await page.addStyleTag({path:'android/app/src/main/mobile/mobile.css'});await page.addScriptTag({path:'android/app/src/main/mobile/mobile.js'});
  await page.screenshot({path:'ui-reports/06-mobile-menu.png'});await page.click('#start');await page.screenshot({path:'ui-reports/07-mobile-hud.png'});
+ 
+ const layout=await page.evaluate(()=>{
+   const panel=document.querySelector('.touch').getBoundingClientRect(),map=minimapBounds();
+   return {buttons:[...document.querySelectorAll('.touch button')].map(b=>{const r=b.getBoundingClientRect();return r.width>=44&&r.height>=44&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===b;}),mapClear:map.y+map.width+8<=panel.top};
+ });
+ assert.ok(layout.buttons.every(Boolean),'Touch controls must be visible, large enough and unobstructed');
+ assert.equal(layout.mapClear,true,'Minimap overlaps touch controls');
+ const mapBefore=await page.evaluate(()=>mapExpanded);await page.click('#touchMap');assert.equal(await page.evaluate(()=>mapExpanded),!mapBefore);
+
  assert.equal(await page.locator('#betaBadge').isVisible(),true);
  assert.deepEqual(errors,[]);console.log('PASS: 2D fallback browser name/start, career menu, objective interaction, reload persistence, scoreboard, account, landscape mobile and BETA.');
  await browser.close();
