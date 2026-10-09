@@ -27,10 +27,11 @@ async function installed(folder) {
     return { sha: marker.sha, root };
   } catch { return null; }
 }
-async function update(folder, report = () => {}, fetcher = fetch) {
+async function update(folder, report = () => {}, fetcher = fetch, ref = 'main') {
+  if (!['main', 'feat/street-life-gunshop'].includes(ref)) throw Error('Unknown update channel');
   const current = await installed(folder);
   report('Kontroluji aktualizace…', 0);
-  const head = await (await request('https://api.github.com/repos/' + repo + '/commits/main', fetcher)).json();
+  const head = await (await request('https://api.github.com/repos/' + repo + '/commits/' + ref, fetcher)).json();
   if (!shaPattern.test(head.sha)) throw Error('Neplatná verze aktualizace.');
   if (head.sha === current?.sha) { report('Máš aktuální verzi.', 100); return current; }
   const tree = await (await request('https://api.github.com/repos/' + repo + '/git/trees/' + head.sha + '?recursive=1', fetcher)).json();
