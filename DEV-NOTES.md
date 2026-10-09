@@ -37,3 +37,5 @@ Lokální vývoj: Node.js 22, npm install, npm run desktop:start. Sestavení na 
 ## 2026-10-09 · Textový design / Typography
 
 Oranžové písmo a růžové akce podle vybraného náhledu. Pozadí textu v úvodním menu a HUD jsou průhledná; mise se při otevřeném menu skryje, aby se nepřekrývala s titulkem. Dialogy služeb mají čitelnou vlastní plochu. ImageGen použit pro vizuální předlohu, živé UI implementované v CSS. / Orange typography, magenta actions and transparent menu/HUD backgrounds; hide mission HUD behind the start menu.
+
+Ukládání času každých 10 sekund aktivní hry a při pagehide zabraňuje ztrátě celého rozehraného dne. Gameplay testy ověřeny před začleněním do main.
