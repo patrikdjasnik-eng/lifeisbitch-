@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict');
+const system = require('../web/character-system.js');
+const { webcrypto } = require('node:crypto');
+assert.equal(system.validName('  Žižkov   Adam '), true);
+for (const name of ['', 'ab', '<script>alert(1)</script>', 'a'.repeat(25), null]) assert.equal(system.validName(name), false);
+const first = system.create('  Žižkov   Adam ', webcrypto);
+assert.equal(first.name, 'Žižkov Adam');
+assert.notEqual(first.id, system.create('Adam', webcrypto).id);
+assert.deepEqual(system.restore(first), first);
+assert.equal(system.restore({ name: 'Adam', id: 'bad' }), null);
+assert.throws(() => system.create('<img>', webcrypto));
+console.log('Character validation, stable restoration and unique IDs passed.');
