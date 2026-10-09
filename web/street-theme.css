@@ -38,3 +38,5 @@ button:hover{background:#1c2c40;border-color:#ff6a3d}button:focus-visible,input:
 .accountPanel input:focus{outline-color:#ff815d}
 
 #mobilePrivacy{background:#0d1520;border-color:#ff6a3d;color:#e8eef5}
+
+body:has(#menu:not(.hidden)) header,body:has(#menu:not(.hidden)) footer,body:has(#menu:not(.hidden)) #location,body:has(#menu:not(.hidden)) .touch{visibility:hidden}

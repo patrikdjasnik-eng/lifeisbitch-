@@ -1,5 +1,6 @@
 'use strict';
 (() => {
+  document.documentElement.classList.add('mobileGame');
   const actions = document.createElement('div');
   actions.id = 'mobileSettings';
   for (const [label, action] of [
@@ -38,3 +39,4 @@
   }
   document.addEventListener('visibilitychange', () => { keys.clear(); });
 })();
+

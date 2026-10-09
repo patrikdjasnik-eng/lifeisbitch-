@@ -7,6 +7,11 @@ const camera={x:player.x,y:player.y};
 let viewZoom = 1;
 let cityMapZoom = 1;
 let nearbyMapZoom = 12;
+function minimapBounds(){
+  const mobile=w<800||Boolean(document.documentElement?.classList?.contains?.('mobileGame'));
+  const width=mobile?115:190;
+  return {width,x:w-width-26,y:mobile?90:h-width-76,mobile};
+}
 function changeZoom(current, delta, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, current * Math.exp(-Math.max(-300, Math.min(300, delta)) * .0015)));
 }
@@ -14,8 +19,7 @@ addEventListener('wheel', event => {
   if (!started || paused || dialogOpen || event.ctrlKey || event.target?.closest?.('button, input, textarea, select, .overlay, .mission, header, footer')) return;
   const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? h : 1);
   if (!Number.isFinite(delta) || delta === 0) return;
-  const mapWidth = w < 800 ? 115 : 190;
-  const mapX = w - mapWidth - 26, mapY = h - mapWidth - 76;
+  const {width:mapWidth,x:mapX,y:mapY}=minimapBounds();
   const overMap = !interior && event.clientX >= mapX && event.clientX <= mapX + mapWidth && event.clientY >= mapY && event.clientY <= mapY + mapWidth;
   event.preventDefault();
   if (overMap) {
@@ -208,7 +212,7 @@ function interact(){if(!started||paused||dialogOpen)return;if(interior){useInter
 
 function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
-$('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify('První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
+$('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify(careerState.active?'Pokračuješ · '+careerSystem.current(careerState).title:complete?'Nový den · Kariéra (K)':'První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
 addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='k')openCareer();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key)}$('touchE').onclick=interact;$('touchF').onclick=enterCar;
 $('sound').onclick=()=>{try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();sound=!sound;$('sound').textContent='ZVUK: '+(sound?'ZAPNUTO':'VYPNUTO');if(sound){const buffer=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.035;const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();filter.type='lowpass';filter.frequency.value=850;source.buffer=buffer;source.loop=true;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();audio.rainGain=gain}else audio.suspend()}catch{notify('Zvuk není v tomto prohlížeči dostupný.')}};
@@ -503,7 +507,7 @@ function drawDistrictAtmosphere(){
   const haze=ctx.createLinearGradient(0,0,0,h);haze.addColorStop(0,'#9fb8dc0b');haze.addColorStop(.5,'#9fb8dc00');haze.addColorStop(1,'#030c1615');rect(0,0,w,h,haze);
 }
 function drawMap(){
-  const mw=w<800?115:190,x=w-mw-26,y=h-mw-76,zoom=mapExpanded?cityMapZoom:nearbyMapZoom;
+  const {width:mw,x,y,mobile}=minimapBounds(),zoom=mapExpanded?cityMapZoom:nearbyMapZoom;
   const span=size/zoom,s=mw/span,cx=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.x)),cy=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
   rect(x-8,y-8,mw+16,mw+16,'#080f18ed');ctx.save();ctx.beginPath();ctx.rect(x,y,mw,mw);ctx.clip();ctx.translate(x-(cx-span/2)*s,y-(cy-span/2)*s);
   rect(0,0,size*s,size*s,'#24353e');
@@ -513,12 +517,12 @@ function drawMap(){
   if(targetAvailable()){ctx.fillStyle='#ff6a3d';ctx.beginPath();ctx.arc(mission().x*s,mission().y*s,4,0,7);ctx.fill()}
   for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
   if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO',x,y-17);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mobile?(mapExpanded?'CELÉ MĚSTO':'OKOLÍ · MAPA'):(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO'),x,y-17);
 }
 let mapExpanded=false;
 canvas.addEventListener?.('pointerup',event=>{
   const bounds=canvas.getBoundingClientRect(),px=event.clientX-bounds.left,py=event.clientY-bounds.top;
-  const mapWidth=w<800?115:190,mapX=w-mapWidth-26,mapY=h-mapWidth-76;
+  const {width:mapWidth,x:mapX,y:mapY}=minimapBounds();
   if(px>=mapX-8&&px<=mapX+mapWidth+8&&py>=mapY-24&&py<=mapY+mapWidth+8)mapExpanded=!mapExpanded;
 });
 const levelThresholds=[0,120,300,560,900,1320,1820,2400];
