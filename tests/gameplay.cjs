@@ -161,3 +161,20 @@ for(let day=0;day<7;day++)lifeSystem.nextDay(lifeState);reconcileOwnedVehicles()
 closeContracts();interior=null;
 `,context);
 console.log('PASS: projected villa districts, 22 chained quests, NPC reachability, negative city bounds, stock UI orders/P&L/history, dealer purchase/spawn/sale/restore, leasing payments and repossession');
+
+vm.runInContext(fs.readFileSync('web/city-map.js','utf8'),context);
+vm.runInContext(`
+closeContracts();interior=null;started=true;paused=false;player.x=255;player.y=350;
+const navigation=window.lifeCityMap;
+if(!navigation.find('orechovka').some(point=>point.name==='OŘECHOVKA')||!navigation.find('burza','finance').some(point=>point.name==='BURZA PRAHA')||navigation.find('BAVARIA','finance').length)throw Error('Map search/filter');
+for(const point of navigation.pois().filter(point=>point.category!=='district')){
+ const route=navigation.buildRoute(player,point);if(!route.length)throw Error('No street route to '+point.name);
+ if(navigation.routeLength(route)+.01<distance(player,point))throw Error('Route shorter than straight distance');
+ for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i];if(Math.abs(a.x-b.x)>.01&&Math.abs(a.y-b.y)>.01)throw Error('Diagonal street routing');const steps=Math.max(1,Math.ceil(distance(a,b)/10));for(let j=0;j<=steps;j++){const x=a.x+(b.x-a.x)*j/steps,y=a.y+(b.y-a.y)*j/steps;if(nearbyBuildings(x,y,4).some(building=>x>building.x&&x<building.x+building.w&&y>building.y&&y<building.y+building.h))throw Error('Route through building');}}
+}
+if(!navigation.toggle(true)||!mapExpanded)throw Error('Map open');
+const cursor={x:900,y:500},before=navigation.toWorld(cursor);navigation.zoomAt(1.4,cursor);if(distance(before,navigation.toWorld(cursor))>.01)throw Error('Zoom cursor drift');
+const exchange=navigation.find('burza')[0];if(!navigation.selectPlace(exchange.id)||!navigation.routeTo(exchange.id)||!navigation.state.route.length||localStorage.getItem('street-life-navigation-v1')!==exchange.id)throw Error('Map route selection/save');
+navigation.clearRoute();if(navigation.state.route.length)throw Error('Map clear route');navigation.toggle(false);if(mapExpanded)throw Error('Map close');
+`,context);
+console.log('PASS: map search/categories, street routing to every POI without building crossings, cursor zoom, POI selection, saved navigation and open/close');

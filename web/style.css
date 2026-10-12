@@ -241,3 +241,40 @@ footer { right: 26px; }
 .carPreview.suv,.carPreview.box{height:68px}.carPreview.box{border-radius:6px}.carPreview.box:before{border-radius:6px;transform:none;height:40px;top:-35px}
 .dialogBox button:disabled{opacity:.4;cursor:default}
 @media(max-width:800px){.marketSummary{grid-template-columns:repeat(2,1fr)}.marketSummary strong{font-size:15px}.stockTickers{grid-template-columns:repeat(2,1fr)}#dialog.marketDialog{padding:3vw}.dealerCard{padding:15px}.carPreview.limousine{width:235px}.carPreview.limousine:after{box-shadow:147px 0 0 -6px #1a232b,147px 0 0 0 #9ba8b0}}
+
+#cityMapOverlay{position:fixed;inset:0;z-index:40;background:#f2f0e9;color:#35434b;font-family:Arial,sans-serif}
+#cityMapCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#cityMapCanvas:active{cursor:grabbing}
+.cityMapSidebar{position:absolute;top:18px;left:18px;bottom:45px;width:350px;padding:19px;background:#fffffff5;border:1px solid #e2e4df;border-radius:16px;box-shadow:0 5px 26px #3d484b26;display:flex;flex-direction:column;overflow:hidden}
+.cityMapBrand{font-weight:700;font-size:22px;margin-bottom:17px;color:#384b51;display:flex;align-items:center;gap:10px}
+.cityMapBrand>span{background:#d05836;color:#fff;padding:8px 7px;border-radius:9px;font-size:16px}
+.cityMapBrand small{font-size:8px;letter-spacing:2px;margin-left:auto;color:#82908f}
+.cityMapSearch{display:flex;align-items:center;gap:9px;padding:12px;background:#f3f5f4;border:1px solid #d9dfdb;border-radius:24px}
+.cityMapSearch>span{font-size:23px;color:#77857f}
+#cityMapSearch{min-width:0;width:100%;border:0;background:transparent;font:13px Arial;color:#394a4e;padding:0;outline:none;margin:0}
+#cityMapSearch:focus-visible{outline:2px solid #4988b7;border-radius:3px}
+.cityMapFilters{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 7px}
+#cityMapOverlay button{font-family:Arial,sans-serif;color:#3f4f54;cursor:pointer;pointer-events:auto}
+#cityMapOverlay .cityMapFilters button{padding:7px 11px;border:1px solid #dce1de;border-radius:18px;background:#fff;font-size:11px}
+#cityMapOverlay .cityMapFilters button.selected{background:#e4efe9;border-color:#84ad98;color:#3a6c55}
+.cityMapResults{flex:1;min-height:80px;overflow-y:auto;margin:5px -5px;padding:0 5px}
+.cityMapResults .mapResultCount{font-size:10px;color:#8c9697;margin:12px 0}
+#cityMapOverlay button.mapPlaceResult{display:flex;align-items:center;gap:12px;width:100%;padding:13px 1px;border:0;border-bottom:1px solid #ebeeea;background:transparent;text-align:left}
+#cityMapOverlay button.mapPlaceResult:hover{background:#f1f6f1}
+.mapResultIcon{display:grid;place-items:center;flex:none;width:29px;height:29px;border-radius:50%;color:white;font-weight:700;font-size:12px}
+.mapPlaceResult strong{font-size:12px;display:block}.mapPlaceResult small{display:block;font-size:10px;line-height:1.6;margin-top:4px;color:#85918b}
+.cityMapDetails{flex:none;margin-top:16px;padding-top:17px;border-top:1px solid #e0e6df}
+.cityMapDetails>small{font-size:10px;color:#789080}.cityMapDetails h2{font-size:21px;color:#34484d;margin:8px 0}.cityMapDetails p{font-size:12px;line-height:1.7;color:#738078}
+#cityMapOverlay .cityMapDetails button{display:block;width:100%;padding:12px;border:0;border-radius:20px;background:#4285df;color:#fff;font-size:13px;margin-top:9px}
+#cityMapOverlay .cityMapDetails .mapSecondary{background:#edf1f4;color:#6e7e89}
+#cityMapOverlay .cityMapDetails button:disabled{opacity:.4;cursor:default}
+#cityMapOverlay .cityMapClose{position:absolute;right:22px;top:20px;border:0;background:#fff;border-radius:24px;padding:12px 17px;box-shadow:0 3px 12px #3d484b26;font-size:18px}
+.cityMapClose span{font-size:10px;color:#89918e;margin-left:8px}
+.cityMapControls{position:absolute;right:22px;bottom:80px;display:flex;flex-direction:column;background:#fff;box-shadow:0 3px 12px #3d484b26;border-radius:10px;overflow:hidden}
+#cityMapOverlay .cityMapControls button{background:#fff;border:0;border-bottom:1px solid #e1e6e1;padding:9px 15px;font-size:23px}
+#cityMapOverlay .cityMapControls button:hover{background:#eff5ed}
+.cityMapLegend{position:absolute;bottom:20px;left:20px;display:flex;align-items:center;gap:8px;padding:9px 13px;background:#ffffffdf;border-radius:12px;font-size:10px;color:#78857c}
+.cityMapLegend i{width:9px;height:9px;border:2px solid white;background:#4285df;border-radius:50%}.cityMapLegend b{color:#d79b41}.cityMapLegend span{margin-left:14px;color:#8b9692}
+.cityMapCredit{position:absolute;bottom:5px;right:10px;font-size:9px;color:#9aa098}
+.cityMapScale{position:absolute;bottom:30px;right:24px;font-size:10px;color:#707c73;border:solid #8e9990;border-width:0 1px 2px;text-align:center;padding-bottom:4px}
+@media(max-width:800px){.cityMapSidebar{top:12px;left:12px;right:66px;bottom:auto;width:auto;padding:13px;border-radius:13px;max-height:54vh}.cityMapBrand{font-size:18px;margin-bottom:10px}.cityMapBrand small{font-size:7px;letter-spacing:1px}.cityMapBrand>span{font-size:12px;padding:6px}.cityMapFilters{gap:4px;margin-top:10px}#cityMapOverlay .cityMapFilters button{padding:6px 8px;font-size:10px}.cityMapResults{max-height:145px}.cityMapDetails{margin-top:8px;padding-top:10px}.cityMapDetails h2{font-size:17px}.cityMapDetails p{margin:4px 0}.cityMapSidebar:has(.cityMapDetails:not(.hidden)) .cityMapResults{display:none}#cityMapOverlay .cityMapClose{right:10px;top:13px;padding:12px}.cityMapClose span,.cityMapLegend span{display:none}.cityMapControls{right:10px;bottom:90px}.cityMapLegend{left:10px;bottom:18px}.cityMapScale{right:12px}.cityMapCredit{font-size:8px}}

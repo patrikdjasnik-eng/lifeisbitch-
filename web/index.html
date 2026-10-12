@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Life Is Bitch · Betonové sny</title>
-  <link rel="stylesheet" href="style.css?v=district-market-cars-1">
+  <link rel="stylesheet" href="style.css?v=game-maps-1">
   <link rel="stylesheet" href="character.css">
   <link rel="stylesheet" href="accounts.css">
 </head>
@@ -33,6 +33,7 @@
   <div class="playerPanel" aria-label="Player menu">
     <button id="playerMenuToggle" aria-expanded="false" aria-controls="playerActions">Player</button>
     <div id="playerActions" class="playerActions hidden">
+      <button id="cityMapButton">Mapa města · M</button>
       <button id="phone">Telefon · P</button>
       <button id="scoreboardButton">Scoreboard · Tab</button>
       <button id="contracts">Kontakty · J</button>
@@ -64,6 +65,24 @@
     <button data-key=" ">BRZDA</button>
     <button id="touchMap">MAPA</button>
   </div>
+  <section id="cityMapOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Mapa herního města">
+    <canvas id="cityMapCanvas" aria-label="Mapa ulic, čtvrtí a míst"></canvas>
+    <aside class="cityMapSidebar">
+      <div class="cityMapBrand"><span>LIB</span> Město <small>HERNÍ PRAHA</small></div>
+      <label class="cityMapSearch"><span>⌕</span><input id="cityMapSearch" type="search" placeholder="Hledat čtvrť, NPC nebo místo" aria-label="Hledat místo na mapě"></label>
+      <div id="cityMapFilters" class="cityMapFilters" aria-label="Kategorie míst"></div>
+      <div id="cityMapResults" class="cityMapResults" aria-live="polite"></div>
+      <article id="cityMapDetails" class="cityMapDetails hidden">
+        <small id="cityMapPlaceKind"></small><h2 id="cityMapPlaceName"></h2><p id="cityMapPlaceText"></p>
+        <button id="cityMapNavigate">➜ Trasa sem</button><button id="cityMapClearRoute" class="mapSecondary">Zrušit trasu</button>
+      </article>
+    </aside>
+    <button id="cityMapClose" class="cityMapClose" aria-label="Zavřít mapu">✕ <span>M / Esc</span></button>
+    <div class="cityMapControls"><button id="cityMapLocate" aria-label="Moje poloha">◎</button><button id="cityMapZoomIn" aria-label="Přiblížit mapu">+</button><button id="cityMapZoomOut" aria-label="Oddálit mapu">−</button><button id="cityMapFit" aria-label="Celé město">▧</button></div>
+    <div class="cityMapLegend"><i></i> Ty <b>●</b> Úkol / místo <span>Táhni mapu · kolečko pro zoom</span></div>
+    <div id="cityMapScale" class="cityMapScale"></div>
+    <div class="cityMapCredit">Life Is Bitch · herní plán Prahy</div>
+  </section>
   <div class="overlay" id="menu">
     <div class="intro">
       <div class="eyebrow">RABBIT HOLLOW PRESENTS</div>
@@ -106,11 +125,12 @@
     </div>
   </div>
   <script src="character-system.js"></script>
-  <script src="life-system.js?v=district-market-cars-1"></script>
-  <script src="game.js?v=district-market-cars-1"></script>
+  <script src="life-system.js?v=game-maps-1"></script>
+  <script src="game.js?v=game-maps-1"></script>
+  <script src="city-map.js?v=game-maps-1"></script>
   <script src="character-ui.js"></script>
   <script src="account-ui.js"></script>
-  <script type="module" src="renderer3d.js?v=district-market-cars-1"></script>
+  <script type="module" src="renderer3d.js?v=game-maps-1"></script>
   <div id="studioTag">Rabbithollow Code Studio™</div>
   <div id="betaBadge" aria-label="Beta verze hry">BETA</div>
 </body>
