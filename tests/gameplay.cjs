@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm');
 const storage=new Map(),els=new Map(),canvas={getContext(){return {setTransform(){}}},addEventListener(){}};
-function el(){return {firstChild:{textContent:''},style:{},classList:{add(){},remove(){},toggle(){}},replaceChildren(){},append(){}}}
+function el(){return {firstChild:{textContent:''},style:{setProperty(){}},setAttribute(){},classList:{add(){},remove(){},toggle(){}},children:[],replaceChildren(){this.children=[]},append(...items){this.children.push(...items)}}}
 const html=fs.readFileSync('web/index.html','utf8'),css=fs.readFileSync('web/style.css','utf8');
 if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons not grouped/styled');
 if(!css.includes('.playerPanel')||!css.includes('#menu #accountButton'))throw Error('Player/account button styles missing');
@@ -69,7 +69,7 @@ interior=null;player.car=null;dialogOpen=false;activeShop=null;
 for(const name of ['ZÁKLADNÍ ŠKOLA','ÚŘAD PRÁCE','POLICIE ČR','OBCHODNÍ CENTRUM','GYMNÁZIUM VINOHRADY','CENTRUM VINOHRADY']){
  const b=buildings.find(item=>item.name===name);if(!b)throw Error('Missing civic place: '+name);const door=doorFor(b);if(collision(door.x,door.y,10))throw Error('Blocked civic door');
 }
-for(const lot of parkingLots){if(buildingBuckets.has(lot.row*gridSize+lot.col))throw Error('Parking covered by buildings');if(collision(lot.col*400+200,lot.row*400+200,10))throw Error('Parking unreachable');}
+for(const lot of parkingLots){if(buildingBuckets.has(cellKey(lot.row,lot.col)))throw Error('Parking covered by buildings');if(collision(lot.col*400+200,lot.row*400+200,10))throw Error('Parking unreachable');}
 for(const stop of transitStops)if(collision(stop.x,stop.y,10))throw Error('Blocked transit stop');
 const stop=transitStops[0];player.x=stop.x;player.y=stop.y;player.cash=100;
 showTransitMenu(stop);if(!rideTransit(1)||player.cash!==60||player.x!==transitStops[1].x)throw Error('Transit purchase/arrival failed');
@@ -119,3 +119,45 @@ const office=buildings.find(b=>b.name==='ÚŘAD PRÁCE'),apartment=buildings.fin
 for(const place of [bank,hostel,office,apartment]){if(!place)throw Error('Service missing');const door=doorFor(place);if(collision(door.x,door.y,10))throw Error('Blocked service door');enterBuilding(place);const point=lifeServicePoint();if(interiorCollision(point.x,point.y,10))throw Error('Blocked service point');player.x=point.x;player.y=point.y;if(!openLifeMenu('service'))throw Error('Service menu failed');closeContracts();interior.floor=1;if(openLifeMenu('service'))throw Error('Wrong floor service');interior=null;}
 `, context);
 console.log('PASS: bank transfers, trading, business, property rent/buy/mortgage, entitlements, loans/repayment/overdue, rental/sleep, recurring bills, SMS limits, persistence/corrupt saves, service entrances and floors');
+
+vm.runInContext(`
+closeContracts();interior=null;activeContract=null;activeDistrictJob=null;completedDistrictJobs=[];started=true;paused=false;
+if(cityBlocks.length!==4096||new Set(cityBlocks.map(area=>cellKey(Math.floor(area.y/block),Math.floor(area.x/block)))).size!==4096)throw Error('Expanded city spatial index');
+for(const anchor of pragueDistrictAnchors){if(districtAt(anchor.x,anchor.y).name!==anchor.name)throw Error('Wrong projected district');if(!districtContacts.some(contact=>contact.district===anchor.name))throw Error('Missing district NPC');}
+if(Math.hypot(pragueDistrictAnchors[0].x,pragueDistrictAnchors[0].y)<4500||Math.hypot(pragueDistrictAnchors[0].x,pragueDistrictAnchors[0].y)>6000)throw Error('Villa distance scale');
+if(!buildings.some(b=>b.type==='villa'&&b.height<10&&b.w<110)||districtJobs.length!==22||districtContacts.length!==11)throw Error('Villas/local quest content');
+for(const contact of districtContacts){if(collision(contact.x,contact.y,10)||districtJobs.filter(job=>job.contactId===contact.id).length!==2)throw Error('Unreachable district contact');}
+if(collision(-5165,-1165,10)||!collision(worldMin-5,worldMin+300,10))throw Error('Negative world boundary');
+const local=districtJobs[0],follow=districtJobs[1],storyBefore=missionIndex;
+if(acceptDistrictJob(follow.id)||!acceptDistrictJob(local.id)||acceptDistrictJob(local.id)||mission().title!==local.title)throw Error('Quest chain gating');
+player.x=local.target.x+100;player.y=local.target.y;if(completeDistrictJob())throw Error('Remote quest completion');
+player.x=local.target.x;player.y=local.target.y;const questCash=player.cash;
+if(!completeDistrictJob()||player.cash!==questCash+local.reward||completeDistrictJob()||missionIndex!==storyBefore||!acceptDistrictJob(follow.id))throw Error('Quest payout/story resume');
+saveProgress();activeDistrictJob=null;completedDistrictJobs=[];restoreProgress();if(activeDistrictJob!==follow.id||!completedDistrictJobs.includes(local.id))throw Error('District quest save');
+activeDistrictJob=null;lifeState=lifeSystem.create();player.cash=900000;player.car=null;
+lifeSystem.act(lifeState,player,'account');lifeSystem.act(lifeState,player,'deposit',700000);
+const broker=buildings.find(b=>b.name==='BURZA PRAHA');if(!broker||collision(doorFor(broker).x,doorFor(broker).y,10))throw Error('Exchange entrance');
+enterBuilding(broker);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='exchange')throw Error('Exchange terminal');
+stockBudget=1000;if(!submitExchangeOrder('PMOB','buy')||lifeState.portfolio.PMOB<=0||lifeState.costBasis.PMOB!==1000||lifeState.orders.length!==1||lifeState.balance!==699000)throw Error('Stock UI order');
+stockBudget=-1;const unchanged=lifeState.balance;if(submitExchangeOrder('PMOB','buy')||lifeState.balance!==unchanged)throw Error('Invalid order budget');
+player.x+=90;stockBudget=1000;if(submitExchangeOrder('PMOB','buy'))throw Error('Remote order');Object.assign(player,lifeServicePoint());
+const oldQuote=lifeSystem.marketPrice(lifeState,'PMOB');lifeState.elapsed=60;if(oldQuote===lifeSystem.marketPrice(lifeState,'PMOB'))throw Error('Quote clock frozen');
+if(!lifeSystem.act(lifeState,player,'trade',{type:'sell',asset:'PMOB',units:'all'})||lifeState.costBasis.PMOB!==0||lifeState.orders.length!==2||!Number.isSafeInteger(lifeState.realizedPnL))throw Error('P/L accounting');
+closeContracts();interior=null;
+for(const name of ['BAVARIA','VIER','STERN','NORD']){const b=buildings.find(item=>item.name===name+' AUTOSALON');if(!b||collision(doorFor(b).x,doorFor(b).y,10))throw Error('Dealer entrance');enterBuilding(b);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='dealer'||!dealerOffers().length)throw Error('Dealer NPC catalog');closeContracts();interior=null;}
+const bavaria=buildings.find(b=>b.name==='BAVARIA AUTOSALON');enterBuilding(bavaria);Object.assign(player,lifeServicePoint());openLifeMenu('service');
+lifeButton('Test purchase','buyVehicle','b5');const buyButton=document.getElementById('choices').children.at(-1),fundsBefore=player.cash+lifeState.balance;buyButton.onclick();
+const purchased=lifeState.vehicles[0],worldCar=cars.find(car=>car.ownedId===purchased?.id);
+if(!purchased||!worldCar||player.cash+lifeState.balance!==fundsBefore-85000||carCollision(worldCar.x,worldCar.y,worldCar.angle))throw Error('Dealer purchase/spawn');
+lifeButton('Wrong salon model','buyVehicle','gw');document.getElementById('choices').children.at(-1).onclick();if(lifeState.vehicles.length!==1)throw Error('Unauthorized dealer model');
+worldCar.y+=5;saveProgress();lifeState=lifeSystem.create();restoreProgress();if(lifeState.vehicles.length!==1||cars.filter(car=>car.ownedId===purchased.id).length!==1)throw Error('Owned car restart');
+closeContracts();Object.assign(player,lifeServicePoint());openLifeMenu('service');const sale=lifeSystem.resaleValue(lifeState,lifeState.vehicles[0]),beforeSale=lifeState.balance;
+lifeButton('Test sell','sellVehicle',purchased.id);document.getElementById('choices').children.at(-1).onclick();if(lifeState.vehicles.length||cars.some(car=>car.ownedId===purchased.id)||lifeState.balance!==beforeSale+sale)throw Error('Dealer sale/remove/payout');
+lifeButton('Test lease','leaseVehicle','b5');document.getElementById('choices').children.at(-1).onclick();const leased=lifeState.vehicles[0];if(!leased?.lease||leased.lease.remaining!==76160)throw Error('Lease contract');
+if(lifeSystem.act(lifeState,player,'payLease',leased.id))throw Error('Early duplicate installment');
+for(let day=0;day<3;day++)lifeSystem.nextDay(lifeState);const debtBefore=leased.lease.remaining;if(!lifeSystem.act(lifeState,player,'payLease',leased.id)||leased.lease.remaining!==debtBefore-6347||lifeSystem.act(lifeState,player,'payLease',leased.id))throw Error('Lease installment');
+saveProgress();lifeState=lifeSystem.restore(lifeState);if(lifeState.vehicles[0].lease.remaining!==debtBefore-6347)throw Error('Lease restore');
+for(let day=0;day<7;day++)lifeSystem.nextDay(lifeState);reconcileOwnedVehicles();if(lifeState.vehicles.length||cars.some(car=>car.ownedId===leased.id))throw Error('Lease repossession');
+closeContracts();interior=null;
+`,context);
+console.log('PASS: projected villa districts, 22 chained quests, NPC reachability, negative city bounds, stock UI orders/P&L/history, dealer purchase/spawn/sale/restore, leasing payments and repossession');

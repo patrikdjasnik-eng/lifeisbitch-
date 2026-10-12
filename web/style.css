@@ -219,3 +219,25 @@ footer { right: 26px; }
   .playerActions button { padding: 9px 10px; font-size: 11px; }
   #menu #accountButton { width: 100%; }
 }
+#dialog.marketDialog .dialogBox{width:min(960px,96vw);border-top-color:#bdf071}
+.marketSummary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0}
+.marketSummary>div{padding:15px;background:#192b37;border:1px solid #3b5362;border-radius:8px}
+.marketSummary small{display:block;color:#9fb2be;font-size:10px;letter-spacing:1px}
+.marketSummary strong{display:block;margin-top:8px;color:#d0f79a;font-size:19px}
+.stockTickers{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.dialogBox .stockTickers button{font-size:12px;margin:0;padding:12px 8px}
+.stockTickers button.selected{border-color:#bdf071;background:#304137;color:#d0f79a}
+.stockChart{background:linear-gradient(180deg,#192e38,#10202c);border:1px solid #35515d;border-radius:8px;margin:18px 0}
+.stockChart svg{display:block;width:100%;height:auto;max-height:250px}
+.orderBudget{display:flex;align-items:center;justify-content:space-between;gap:15px;color:#c0ccd5;font-size:13px;margin:20px 0}
+.orderBudget input{width:160px;padding:12px;background:#0c1821;border:1px solid #5c776d;border-radius:5px;color:#e8f9db;font-size:16px}
+.dealerCard{background:#182a36;border:1px solid #365061;padding:20px;border-radius:9px;margin-top:28px}
+.dealerCard>strong{display:block;font-size:23px;color:#f3d498}
+.dealerCard p{margin:8px 0 0}
+.carPreview{position:relative;width:230px;height:55px;margin:25px auto 35px;background:var(--car-paint);border:2px solid #b9c6ce;border-radius:30px 35px 12px 10px;box-shadow:0 18px 12px #060c1590}
+.carPreview:before{content:'';position:absolute;left:45px;top:-30px;width:125px;height:33px;background:linear-gradient(115deg,#698494,#173343);border:5px solid var(--car-paint);border-radius:40px 35px 0 0;transform:skewX(-12deg)}
+.carPreview:after{content:'';position:absolute;left:27px;bottom:-13px;width:30px;height:30px;background:#1a232b;border:6px solid #9ba8b0;border-radius:50%;box-shadow:145px 0 0 -6px #1a232b,145px 0 0 0 #9ba8b0}
+.carPreview.limousine{width:265px}.carPreview.limousine:after{box-shadow:177px 0 0 -6px #1a232b,177px 0 0 0 #9ba8b0}
+.carPreview.suv,.carPreview.box{height:68px}.carPreview.box{border-radius:6px}.carPreview.box:before{border-radius:6px;transform:none;height:40px;top:-35px}
+.dialogBox button:disabled{opacity:.4;cursor:default}
+@media(max-width:800px){.marketSummary{grid-template-columns:repeat(2,1fr)}.marketSummary strong{font-size:15px}.stockTickers{grid-template-columns:repeat(2,1fr)}#dialog.marketDialog{padding:3vw}.dealerCard{padding:15px}.carPreview.limousine{width:235px}.carPreview.limousine:after{box-shadow:147px 0 0 -6px #1a232b,147px 0 0 0 #9ba8b0}}

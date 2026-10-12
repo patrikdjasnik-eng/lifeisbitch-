@@ -1,6 +1,17 @@
 'use strict';
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d');
-const $=id=>document.getElementById(id),keys=new Set(),size=19200,block=400,gridSize=48;
+const $=id=>document.getElementById(id),keys=new Set(),size=19200,block=400,gridSize=48,worldMin=-6400,minCell=-16,worldSpan=size-worldMin;
+function cellKey(row,col){return (row-minCell)*(gridSize-minCell)+col-minCell;}
+function wrapWorld(value){return ((value-worldMin)%worldSpan+worldSpan)%worldSpan+worldMin;}
+// Approximate neighborhood centers projected in meters from Žižkov (50.084, 14.452).
+const pragueDistrictAnchors=[
+  {name:'OŘECHOVKA',lat:50.094,lng:14.381,color:'#e7c784',style:'villa'},
+  {name:'HANSPAULKA',lat:50.110,lng:14.374,color:'#aed692',style:'villa'},
+  {name:'STŘEŠOVICE',lat:50.087,lng:14.372,color:'#e2b99b',style:'old'},
+  {name:'DEJVICE',lat:50.101,lng:14.394,color:'#80cbd6',style:'modern'},
+  {name:'BUBENEČ',lat:50.105,lng:14.414,color:'#b7d29f',style:'garden'},
+  {name:'HRADČANY',lat:50.090,lng:14.398,color:'#d7b486',style:'old'}
+].map(d=>({...d,x:(d.lng-14.452)*111320*Math.cos(50.084*Math.PI/180),y:-(d.lat-50.084)*111320}));
 let w=innerWidth,h=innerHeight,dpr=1,started=false,paused=false,dialogOpen=false,last=0,time=0,toastTimer=0,audio=null,sound=false;
 const player={x:255,y:350,angle:0,car:null,cash:1200,rep:0,heat:0,health:100,step:0,xp:0};
 const camera={x:player.x,y:player.y};
@@ -104,33 +115,36 @@ let seed=47;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/21474836
 const cityBlocks=[];
 const civicPlaces = new Map([
   ['1:0', 'UBYTOVNA'], ['3:3', 'BANKA'], ['1:3', 'ZÁKLADNÍ ŠKOLA'], ['3:1', 'ÚŘAD PRÁCE'], ['2:2', 'POLICIE ČR'],
-  ['2:4', 'HASIČI'], ['4:2', 'NEMOCNICE'], ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY']
+  ['2:4', 'HASIČI'], ['4:2', 'NEMOCNICE'], ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY'], ['-1:-3','BURZA PRAHA'], ['-4:-10','BAVARIA AUTOSALON'], ['-3:-12','VIER AUTOSALON'], ['-6:-9','STERN AUTOSALON'], ['-6:-6','NORD AUTOSALON'], ['-3:-13','BESEDA OŘECHOVKA'], ['-8:-14','HANSPAULSKÝ KLUB']
 ]);
 const parkingLots = [{col:4,row:1},{col:3,row:2},{col:11,row:18}];
 function districtAt(x,y){
+  if(x<0||y<0){let best=pragueDistrictAnchors[0];for(const d of pragueDistrictAnchors)if(Math.hypot(x-d.x,y-d.y)<Math.hypot(x-best.x,y-best.y))best=d;return best;}
   if(y>=14400)return {name:'HOLEŠOVICE · DOKY',color:'#dba977',style:'industrial'};
   if(x>=12800)return {name:'NOVÉ MĚSTO',color:'#72d6f5',style:'modern'};
   if(y>=6400&&x>=3200)return {name:'VINOHRADY',color:'#9fcf92',style:'garden'};
   if(y>=6400)return {name:'KARLÍN',color:'#e8b883',style:'old'};
   return {name:'ŽIŽKOV',color:'#d392ef',style:'residential'};
 }
-for(let row=0;row<gridSize;row++)for(let col=0;col<gridSize;col++){
+for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){
   const x=col*block+82,y=row*block+82,district=districtAt(x,y);
   const parking=parkingLots.some(lot=>lot.col===col&&lot.row===row);
-  const park=(row===2&&col===3)||(district.style==='garden'&&row%8===3&&col%8===5);
-  const plaza=district.style==='modern'&&(row+col)%4===0;
-  const lot=district.style==='industrial'&&(row+col)%3===0;
+  const protectedPlace=civicPlaces.has(row+':'+col);
+  const park=!protectedPlace&&((row===2&&col===3)||(district.style==='garden'&&row%8===3&&col%8===5)||(district.style==='villa'&&(row+col)%7===0));
+  const plaza=!protectedPlace&&district.style==='modern'&&(row+col)%4===0;
+  const lot=!protectedPlace&&district.style==='industrial'&&(row+col)%3===0;
   cityBlocks.push({x:col*block,y:row*block,type:parking?'parking':park?'park':plaza?'plaza':lot?'lot':district.style});
   if(!parking&&!park&&!plaza&&!lot){
     const type=district.style;
     const names=type==='industrial'?['SKLAD 07','DOCKS','CARGO']:type==='modern'?['NOVA','HOTEL','ARCADE']:type==='old'?['KAVÁRNA','BAR 22','VINYL']:['BISTRO','NONSTOP','LÉKÁRNA'];
-    const height=type==='modern'?between(35,65):type==='industrial'?between(8,17):between(15,30);
-    const color=type==='old'?'#5a4942':type==='modern'?'#2d485c':type==='industrial'?'#39434a':['#3e4853','#52464d','#444e53'][Math.floor(rand()*3)];
+    const height=type==='villa'?between(5,9):type==='modern'?between(35,65):type==='industrial'?between(8,17):between(15,30);
+    const color=type==='villa'?'#b29377':type==='old'?'#5a4942':type==='modern'?'#2d485c':type==='industrial'?'#39434a':['#3e4853','#52464d','#444e53'][Math.floor(rand()*3)];
     const name=civicPlaces.get(row+':'+col)||(col===0&&row===0?'NEON':col===1&&row===0?'ŘEZNICTVÍ':col===2&&row===0?'AUTOSERVIS':col===1&&row===2?'POTRAVINY':rand()>.65?names[Math.floor(rand()*names.length)]:'');
     const protectedBlock=civicPlaces.has(row+':'+col)||(col===1&&row===0)||(col===0&&row===0)||(col===2&&row===0)||(col===1&&row===2)||(col===0&&row===1)||(col===3&&row===3);
     const layout=(row*3+col)%4;
-    const addBuilding=(bx,by,bw,bh,scale=1,sign='')=>buildings.push({x:bx,y:by,w:bw,h:bh,height:height*scale,color,name:sign,type,variant:(row+col+Math.floor(bx))%4});
+    const addBuilding=(bx,by,bw,bh,scale=1,sign='')=>buildings.push({x:bx,y:by,w:bw,h:bh,height:height*scale,color,name:sign,type,variant:((row+col+Math.floor(bx))%4+4)%4});
     if(name.includes('CENTRUM')){addBuilding(x,y,250,235,1.3,name);}
+    else if(type==='villa'&&!protectedBlock){addBuilding(x+22,y+24,98,116,1,'');addBuilding(x+170,y+104,78,98,.88,'');}
     else if(protectedBlock||type==='industrial'){
       addBuilding(x,y,type==='industrial'?240:125,type==='industrial'?175:235,1,name);
       if(type!=='industrial')addBuilding(x+145,y+25,105,type==='modern'?175:210,.8);
@@ -159,12 +173,13 @@ for(let i=0;i<36;i++){const col=(i*5+1)%gridSize,row=Math.floor(i/3)%gridSize;ca
 cars[0]={x:275,y:350,angle:0,axis:true,speed:0,color:'#b1bec4',parked:true,police:false};
 for(let i=0;i<5000;i++){const axis=rand()>.5;people.push({x:axis?between(0,size):Math.floor(rand()*gridSize)*block+67,y:axis?Math.floor(rand()*gridSize)*block+67:between(0,size),axis,dir:rand()>.5?1:-1,color:['#986e4e','#516476','#76816b','#755c72'][i%4]});}
 for(let i=0;i<1600;i++)puddles.push({x:between(0,size),y:between(0,size),r:between(5,20)});
-for(let row=0;row<gridSize;row++)for(let col=0;col<gridSize;col++){if((row+col)%2===0)cars.push({x:col*block+61,y:row*block+150,angle:Math.PI/2,axis:false,speed:0,parked:true,police:false,color:['#74818b','#8c674d','#526e70'][(row+col)%3]})}
+for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){if((row+col)%2===0)cars.push({x:col*block+61,y:row*block+150,angle:Math.PI/2,axis:false,speed:0,parked:true,police:false,color:['#74818b','#8c674d','#526e70'][Math.abs(row+col)%3]})}
 for(const lot of parkingLots)for(let slot=0;slot<10;slot++){
   cars.push({x:lot.col*block+105+(slot%5)*43,y:lot.row*block+(slot<5?130:275),angle:Math.PI/2,axis:false,speed:0,parked:true,police:false,color:['#798896','#926f5d','#446a76'][slot%3]});
 }
 const transitLines = [
   {id:'bus133',name:'Autobus 133',kind:'bus',fare:40,color:'#d66a3f',speed:95,points:[{x:435,y:435},{x:2035,y:435},{x:2035,y:1635},{x:435,y:1635}],stopNames:['Řeznictví · Žižkov','Škola','Obchodní centrum','Úřad práce']},
+  {id:'villa6',name:'Autobus · Praha 6',kind:'bus',fare:40,color:'#5f9c69',speed:145,points:[{x:435,y:35},{x:-1165,y:35},{x:-1165,y:-1565},{x:-3965,y:-1565},{x:-5165,y:-1565},{x:-5165,y:-3165},{x:-2365,y:-3165},{x:435,y:-3165}],stopNames:['Žižkov · přestup','Centrum · burza','Praha 6 · přestup','Dejvice','Ořechovka','Hanspaulka','Bubeneč','Letná']},
   {id:'tram9',name:'Tramvaj 9',kind:'tram',fare:40,color:'#d74545',speed:115,points:[{x:835,y:835},{x:4435,y:835},{x:4435,y:7235},{x:835,y:7235}],stopNames:['Policejní stanice','Žižkov východ','Vinohrady','Karlín']}
 ];
 const transitStops = transitLines.flatMap(line=>line.points.map((point,index)=>({x:point.x+32,y:point.y,lineId:line.id,index,name:line.stopNames[index]})));
@@ -174,7 +189,7 @@ for(const line of transitLines)for(let vehicle=0;vehicle<2;vehicle++){
 for(let i=0;i<16;i++)people.push({x:867+(i%4)*400,y:835+Math.floor(i/4)*400,axis:i%2===0,dir:1,color:i%2?'#283d67':'#253f3d',role:i%2?'police':'warden'});
 for(let i=0;i<6;i++)cars.push({x:835+(i%3)*400,y:835+Math.floor(i/3)*400,angle:0,axis:true,speed:60,color:'#e7eef2',parked:false,police:true});
 const trafficLights=[];
-for(let row=0;row<gridSize;row++)for(let col=0;col<gridSize;col++){
+for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){
   if((row+col)%2!==0)continue;
   trafficLights.push({row,col,x:col*block+35,y:row*block+35,offset:(row*3.7+col*5.1)%20});
 }
@@ -323,8 +338,8 @@ function rideTransit(index){
   player.cash-=line.fare;player.x=destination.x;player.y=destination.y;camera.x=player.x;camera.y=player.y;activeTransitStop=null;closeContracts();saveProgress();updateHud();notify(line.name+' · '+destination.name+' · −'+line.fare+' Kč');return true;
 }
 const buildingBuckets=new Map();
-for(const b of buildings){const key=Math.floor(b.y/block)*gridSize+Math.floor(b.x/block);if(!buildingBuckets.has(key))buildingBuckets.set(key,[]);buildingBuckets.get(key).push(b)}
-function nearbyBuildings(x,y,rx,ry=rx){const result=[];for(let row=Math.max(0,Math.floor((y-ry)/block));row<=Math.min(gridSize-1,Math.floor((y+ry)/block));row++)for(let col=Math.max(0,Math.floor((x-rx)/block));col<=Math.min(gridSize-1,Math.floor((x+rx)/block));col++){const items=buildingBuckets.get(row*gridSize+col);if(items)result.push(...items)}return result;}
+for(const b of buildings){const key=cellKey(Math.floor(b.y/block),Math.floor(b.x/block));if(!buildingBuckets.has(key))buildingBuckets.set(key,[]);buildingBuckets.get(key).push(b)}
+function nearbyBuildings(x,y,rx,ry=rx){const result=[];for(let row=Math.max(minCell,Math.floor((y-ry)/block));row<=Math.min(gridSize-1,Math.floor((y+ry)/block));row++)for(let col=Math.max(minCell,Math.floor((x-rx)/block));col<=Math.min(gridSize-1,Math.floor((x+rx)/block));col++){const items=buildingBuckets.get(cellKey(row,col));if(items)result.push(...items)}return result;}
 const missions=[
  {title:'Dluhy nespí',text:'Najdi Viktora před klubem Neon. Má pro tebe práci.',x:210,y:350,label:'Viktor · klub Neon',speaker:'VIKTOR',dialog:'Nájem se sám nezaplatí, Adame. Mám zásilku konopí pro jednoho známého. Neptáš se, doručíš. Nebo vezmi směnu v servisu. Tvoje volba.',choices:[['Vezmu konopí. (+1 800 Kč, +80 XP)','illegal'],['Radši práci v servisu. (+900 Kč)','legal']]},
  {title:'Cena rychlých peněz',text:'Doruč konopí kontaktu u podchodu. Policie hlídá hlavní ulice.',x:665,y:455,label:'Kontakt · podchod',speaker:'KONTAKT',dialog:'Viktor říkal, že přijdeš. Tady máš peníze. Pamatuj: rychlý prachy mají dlouhej stín.',choices:[['Předat konopí a odejít','deliver']]},
@@ -343,14 +358,14 @@ const missions=[
 ];
 const firstChapterEnd=4,cleanChapterStart=9;
 let missionIndex=0,legal=false,complete=false,storyPath=null;
-function mission(){if(activeContract){const item=substances.find(entry=>entry.id===activeContract.substanceId),route=deliveryRoutes[activeContract.routeIndex];return {...route,title:'Zakázka · '+item.name,text:'Doruč '+item.name+' kontaktu. Odměna '+item.reward.toLocaleString('cs-CZ')+' Kč a '+item.xp+' XP.',speaker:'KONTAKT'}}return missions[missionIndex]}function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function mission(){if(activeDistrictJob){const job=districtJobs.find(item=>item.id===activeDistrictJob);return {...job.target,title:job.title,text:job.text+' Odměna '+formatMoney(job.reward)+' · '+job.xp+' XP.',speaker:job.receiver}}if(activeContract){const item=substances.find(entry=>entry.id===activeContract.substanceId),route=deliveryRoutes[activeContract.routeIndex];return {...route,title:'Zakázka · '+item.name,text:'Doruč '+item.name+' kontaktu. Odměna '+item.reward.toLocaleString('cs-CZ')+' Kč a '+item.xp+' XP.',speaker:'KONTAKT'}}return missions[missionIndex]}function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function notify(text){$('toast').textContent=text;$('toast').style.opacity='1';toastTimer=4}
-function chapterEyebrow(){if(complete&&!activeContract)return'VOLNÝ REŽIM / ZAKÁZKY';return missionIndex<=firstChapterEnd?'KAPITOLA 01 / PRVNÍ NOC':storyPath==='street'?'KAPITOLA 02 / ULICE VRACÍ ÚDER':'KAPITOLA 02 / DRUHÁ ŠANCE'}
-function updateHud(){ if($('health'))$('health').textContent=Math.round(player.health)+'/100';$('cash').textContent=player.cash.toLocaleString('cs-CZ')+' Kč';$('rep').textContent=player.rep;$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat));$('missionTitle').textContent=complete&&!activeContract?'Nový den':mission().title;$('missionText').textContent=complete&&!activeContract?'Druhá kapitola je za tebou. Otevři Kontakty a pokračuj v zakázkách.':mission().text;$('objective').textContent=complete&&!activeContract?'J · Kontakty a zakázky':mission().label;const eyebrow=document.querySelector('.mission .eyebrow');if(eyebrow)eyebrow.textContent=chapterEyebrow();updateProgressionHud();if(interior)updateInteriorHud();}
+function chapterEyebrow(){if(complete&&!activeContract&&!activeDistrictJob)return'VOLNÝ REŽIM / ZAKÁZKY';return missionIndex<=firstChapterEnd?'KAPITOLA 01 / PRVNÍ NOC':storyPath==='street'?'KAPITOLA 02 / ULICE VRACÍ ÚDER':'KAPITOLA 02 / DRUHÁ ŠANCE'}
+function updateHud(){ if($('health'))$('health').textContent=Math.round(player.health)+'/100';$('cash').textContent=player.cash.toLocaleString('cs-CZ')+' Kč';$('rep').textContent=player.rep;$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat));$('missionTitle').textContent=complete&&!activeContract&&!activeDistrictJob?'Nový den':mission().title;$('missionText').textContent=complete&&!activeContract&&!activeDistrictJob?'Druhá kapitola je za tebou. Otevři Kontakty a pokračuj v zakázkách.':mission().text;$('objective').textContent=complete&&!activeContract&&!activeDistrictJob?'J · Kontakty a zakázky':mission().label;const eyebrow=document.querySelector('.mission .eyebrow');if(eyebrow)eyebrow.textContent=chapterEyebrow();updateProgressionHud();if(interior)updateInteriorHud();}
 function advance(){missionIndex=Math.min(missionIndex+1,missions.length-1);updateHud()}
 function showDialog(){if(complete||dialogOpen)return;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent=mission().speaker;$('dialogTitle').textContent=mission().title;$('dialogText').textContent=mission().dialog;$('choices').replaceChildren();for(const [text,action]of mission().choices){const button=document.createElement('button');button.textContent=text;button.onclick=()=>choose(action);$('choices').append(button)}}
 function choose(action){dialogOpen=false;$('dialog').classList.add('hidden');if(action==='illegal'){player.heat=1.8;notify('Zásilka převzata. Policie je ve střehu.');advance()}if(action==='legal'){legal=true;storyPath='clean';setServiceMission();advance()}if(action==='deliver'&&missionIndex===1&&!complete){awardXp(80);player.cash+=legal?900:1800;player.rep+=10;notify('Úkol splněn · '+(legal?'900':'1 800')+' Kč');advance()}if(action==='family'){awardXp(40);player.cash=Math.max(0,player.cash-800);player.rep+=15;notify('Eliška: Díky. Dávej na sebe pozor.');advance()}if(action==='decline')advance();if(action==='hide'){awardXp(40);player.heat=0;notify('Pozornost policie klesla.');advance()}if(action==='streetPath'){storyPath='street';missionIndex=5;player.heat=Math.min(5,player.heat+.8);notify('Kapitola 02: Ulice vrací úder.')}if(action==='cleanPath'){storyPath='clean';legal=true;missionIndex=cleanChapterStart;player.heat=Math.max(0,player.heat-.5);notify('Kapitola 02: Druhá šance.')}if(action==='streetPickup'){awardXp(90);player.cash+=1300;player.rep+=8;player.heat=Math.min(5,player.heat+1);notify('Telefon převzat · +1 300 Kč');advance()}if(action==='streetDrop'){awardXp(120);player.cash+=2200;player.rep+=12;player.heat=Math.min(5,player.heat+1.2);notify('Balík předán · +2 200 Kč');advance()}if(action==='helpMore'){awardXp(60);player.cash=Math.max(0,player.cash-1200);player.rep+=20;player.heat=Math.max(0,player.heat-.4);notify('Doma necháváš peníze a trochu klidu.');advance()}if(action==='ignoreMore'){player.rep=Math.max(0,player.rep-5);player.heat=Math.min(5,player.heat+.5);notify('Eliška mlčí. Tohle bude bolet později.');advance()}if(action==='cleanSwitch'){storyPath='clean';legal=true;missionIndex=cleanChapterStart;player.heat=0;notify('Zastavil ses včas. Pavel čeká v servisu.')}if(action==='garageShift'){awardXp(100);player.cash+=1100;player.rep+=12;player.heat=Math.max(0,player.heat-.3);notify('Směna hotová · +1 100 Kč');advance()}if(action==='jobOffice'){awardXp(70);player.cash+=300;player.rep+=12;notify('Registrace hotová · doporučení na práci · +300 Kč');advance()}if(action==='familyGroceries'){awardXp(50);player.cash=Math.max(0,player.cash-450);player.rep+=20;player.health=Math.min(100,player.health+10);notify('Nákup doručen domů · +10 zdraví');advance()}if(action==='clearRecord'){awardXp(80);player.heat=0;player.rep+=15;notify('Pozornost policie vymazaná na nulu.');advance()}if(action.endsWith('End')){complete=true;notify(action==='streetEnd'?'Konec kapitoly: Král bez koruny.':'Konec kapitoly: Druhá šance.');$('missionText').textContent=action==='streetEnd'?'Ulice ti otevřela dveře. Otázka je, co si vezme zpátky.':'Peníze nejsou všechno. Zítra začínáš v servisu.';}updateHud();saveProgress()}
-function collision(x,y,r){if(interior)return interiorCollision(x,y,r);return x<r||y<r||x>size-r||y>size-r||nearbyBuildings(x,y,r).some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h)}
+function collision(x,y,r){if(interior)return interiorCollision(x,y,r);return x<worldMin+r||y<worldMin+r||x>size-r||y>size-r||nearbyBuildings(x,y,r).some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h)}
 function doorFor(b){return {x:b.x+b.w/2,y:b.y+b.h+12}}
 const importantNpcConfigs = [
   { name: 'NEON', label: 'Viktor', short: 'VIK', color: '#d36bff' },
@@ -358,6 +373,8 @@ const importantNpcConfigs = [
   { name: 'POTRAVINY', label: 'Eliška / potraviny', short: 'JÍDLO', color: '#c5f46b' },
   { name: 'ŘEZNICTVÍ', label: 'Karel / řeznictví', short: 'KAR', color: '#ff9f7a' },
   { name: 'BANKA', label: 'Bankéř', short: 'BANK', color: '#4fb9ff' },
+  {name:'BURZA PRAHA',label:'Broker · burza',short:'BURZA',color:'#55d7c2'},
+  ...['BAVARIA','VIER','STERN','NORD'].map(name=>({name:name+' AUTOSALON',label:name+' · prodejce',short:'AUTO',color:'#f3c477'})),
   { name: 'ÚŘAD PRÁCE', label: 'Úředník', short: 'OSVČ', color: '#ff77c8' },
   { name: 'POLICIE ČR', label: 'Policie', short: 'PČR', color: '#68a0ff' },
   { name: 'HASIČI', label: 'Hasiči', short: 'HZS', color: '#ff5c3f' },
@@ -378,6 +395,7 @@ function importantNpcMarkers(includeTarget = false) {
     const door = doorFor(building);
     markers.push({ ...config, x: door.x, y: door.y - 8, building });
   }
+  for(const contact of districtContacts)markers.push({...contact,label:contact.speaker,short:'QUEST',color:'#ffd166'});
   return markers;
 }
 function nearestDoor(){let nearest=null,best=42;for(const b of nearbyBuildings(player.x,player.y,100)){const door=doorFor(b),d=distance(player,door);if(d<best&&!collision(door.x,door.y,10)){nearest=b;best=d}}return nearest}
@@ -433,7 +451,7 @@ function buyButcherProduct(id) {
 }
 function useInterior(){if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){const outside=interior.outside;interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;updateHud();notify('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
 function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
-function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeContract)completeContract();else showDialog();return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
+function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeDistrictJob)completeDistrictJob();else if(activeContract)completeContract();else showDialog();return;}const contact=nearestDistrictContact();if(contact){showDistrictJobs(contact);return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
 
 function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
@@ -449,7 +467,7 @@ function carCollision(x,y,angle){
   const halfLength=23,halfWidth=13;
   const extentX=Math.abs(cos)*halfLength+Math.abs(sin)*halfWidth;
   const extentY=Math.abs(sin)*halfLength+Math.abs(cos)*halfWidth;
-  if(x<extentX||y<extentY||x>size-extentX||y>size-extentY)return true;
+  if(x<worldMin+extentX||y<worldMin+extentY||x>size-extentX||y>size-extentY)return true;
   return nearbyBuildings(x,y,extentX,extentY).some(b=>{
     const dx=b.x+b.w/2-x,dy=b.y+b.h/2-y;
     if(Math.abs(dx)>=b.w/2+extentX||Math.abs(dy)>=b.h/2+extentY)return false;
@@ -474,7 +492,7 @@ function updateDriving(car,input,dt){
       const drag=55*step;
       car.velocity=Math.sign(car.velocity)*Math.max(0,Math.abs(car.velocity)-drag);
     }
-    car.velocity=Math.max(-105,Math.min(310,car.velocity));
+    car.velocity=Math.max(-105,Math.min(car.maxSpeed||310,car.velocity));
     const steering=Number(input.right)-Number(input.left);
     const turnRate=Math.min(2.15,Math.abs(car.velocity)*.033);
     const angle=car.angle+steering*turnRate*step*Math.sign(car.velocity);
@@ -506,7 +524,7 @@ function updateTrafficCar(car,dt){
   const accel=desired>car.trafficVelocity?70:240;
   if(desired>car.trafficVelocity)car.trafficVelocity=Math.min(desired,car.trafficVelocity+accel*dt);
   else car.trafficVelocity=Math.max(desired,car.trafficVelocity-accel*dt);
-  const speed=car.trafficVelocity,angle=car.axis?0:Math.PI/2,nx=(car.x+Math.cos(angle)*speed*dt+size)%size,ny=(car.y+Math.sin(angle)*speed*dt+size)%size;
+  const speed=car.trafficVelocity,angle=car.axis?0:Math.PI/2,nx=wrapWorld(car.x+Math.cos(angle)*speed*dt),ny=wrapWorld(car.y+Math.sin(angle)*speed*dt);
   car.angle=angle;
   const hit=vehicleAt(car,nx,ny,30);
   if(hit){
@@ -517,13 +535,13 @@ function updateTrafficCar(car,dt){
   else car.trafficVelocity=0;
 }
 
-function update(dt){time+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}if(!started||paused||dialogOpen)return;lifeState.elapsed+=dt;lifeSaveElapsed+=dt;if(lifeSaveElapsed>=10){lifeSaveElapsed=0;saveProgress();}if(lifeState.elapsed>=300){lifeState.elapsed-=300;lifeSystem.nextDay(lifeState);saveProgress();notify('Den '+lifeState.day+' · zkontroluj účty v telefonu (P)');}const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright');if(player.car){const c=player.car;updateDriving(c,{up,down,left,right,brake:keys.has(' ')},dt);player.x=c.x;player.y=c.y;player.angle=c.angle}else{let dx=right-left,dy=down-up,len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;const speed=keys.has('shift')?155:90;if(!collision(player.x+dx*speed*dt,player.y,10))player.x+=dx*speed*dt;if(!collision(player.x,player.y+dy*speed*dt,10))player.y+=dy*speed*dt;player.angle=Math.atan2(dy,dx);player.step+=dt*12}}
+function update(dt){time+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}if(!started||paused)return;const previousTick=Math.floor(lifeState.elapsed/30);lifeState.elapsed+=dt;lifeSaveElapsed+=dt;if(lifeState.elapsed>=300){lifeState.elapsed-=300;lifeSystem.nextDay(lifeState);reconcileOwnedVehicles();saveProgress();notify('Den '+lifeState.day+' · zkontroluj účty v telefonu (P)');}if(lifeSaveElapsed>=10){lifeSaveElapsed=0;saveProgress();}if(dialogOpen){if(lifeMenu==='service'&&lifeServiceKind()==='exchange'&&previousTick!==Math.floor(lifeState.elapsed/30)){const mode=lifeMenu;closeContracts();openLifeMenu(mode);}return;}const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright');if(player.car){const c=player.car;updateDriving(c,{up,down,left,right,brake:keys.has(' ')},dt);player.x=c.x;player.y=c.y;player.angle=c.angle}else{let dx=right-left,dy=down-up,len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;const speed=keys.has('shift')?155:90;if(!collision(player.x+dx*speed*dt,player.y,10))player.x+=dx*speed*dt;if(!collision(player.x,player.y+dy*speed*dt,10))player.y+=dy*speed*dt;player.angle=Math.atan2(dy,dx);player.step+=dt*12}}
 updateEmergencyServices(dt);
 for(const c of cars){if(interior||c===player.car||c.parked)continue;if(c.transit){updateTransitVehicle(c,dt);continue;}if(c.emergency)continue;if(c.police&&player.heat>.5&&distance(c,player)<650){const angle=Math.atan2(player.y-c.y,player.x-c.x);c.angle=angle;const nx=c.x+Math.cos(angle)*105*dt,ny=c.y+Math.sin(angle)*105*dt;if(!collision(nx,ny,21)&&!vehicleAt(c,nx,ny,34)){c.x=nx;c.y=ny}if(distance(c,player)<38){player.cash=Math.max(0,player.cash-400);player.heat=0;player.x=255;player.y=350;if(player.car){player.car.x=275;player.car.y=350;player.car.velocity=0;player.car=null}const lostCargo=Boolean(activeContract);activeContract=null;notify(lostCargo?'Zadržení · zásilka zabavena · pokuta 400 Kč':'Zadržení · pokuta 400 Kč · návrat do čtvrti');saveProgress();updateHud()}}else updateTrafficCar(c,dt)}
-for(const p of people){if(p.stationary)continue;if(['police','warden'].includes(p.role)&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=(p.x+p.dir*18*dt+size)%size;else p.y=(p.y+p.dir*18*dt+size)%size}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);syncPragueClock();$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;updateWeatherHud();$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}}}
+for(const p of people){if(p.stationary)continue;if(['police','warden'].includes(p.role)&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=wrapWorld(p.x+p.dir*18*dt);else p.y=wrapWorld(p.y+p.dir*18*dt)}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);syncPragueClock();$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;updateWeatherHud();$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}const contact=nearestDistrictContact();if(contact&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] '+contact.speaker+' · úkoly ve čtvrti'}}}
 function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill()}
 function rounded(x,y,width,height,radius,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,width,height,radius);ctx.fill()}
-function visible(x,y,margin=250){const scale=(w<800?1.04:1.32)*viewZoom,cx=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
+function visible(x,y,margin=250){const scale=(w<800?1.04:1.32)*viewZoom,cx=Math.max(worldMin+w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(worldMin+h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
 function drawBuilding(b){
   const elevation=24+b.height*1.1,dx=-elevation*.22,dy=-elevation*.5;
   polygon([[b.x,b.y],[b.x+b.w,b.y],[b.x+b.w+elevation*.9,b.y+b.h+elevation*.8],[b.x+elevation*.9,b.y+b.h+elevation*.8]],'#00080f65');
@@ -576,7 +594,7 @@ function drawRoofFixtures(b,dx,dy){
 }
 function drawRoofDetails(b,dx,dy){
   const x=b.x+dx,y=b.y+dy;
-  if(b.type==='old'){
+  if(b.type==='old'||b.type==='villa'){
     polygon([[x+8,y+10],[x+b.w/2,y+20],[x+b.w/2,y+b.h-20],[x+8,y+b.h-10]],'#9b6951');
     polygon([[x+b.w/2,y+20],[x+b.w-8,y+10],[x+b.w-8,y+b.h-10],[x+b.w/2,y+b.h-20]],'#694638');
     for(let line=20;line<b.h-15;line+=8){ctx.strokeStyle='#d7966440';ctx.beginPath();ctx.moveTo(x+10,y+line);ctx.lineTo(x+b.w/2,y+line+5);ctx.lineTo(x+b.w-10,y+line);ctx.stroke()}
@@ -596,7 +614,7 @@ function drawRoofDetails(b,dx,dy){
   }
 }
 function drawCar(c){
-  ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);
+  ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);if(c.luxury)ctx.scale(c.vehicleClass==='limousine'?1.2:1.08,c.vehicleClass==='suv'||c.vehicleClass==='box'?1.16:1.05);
   rounded(-25,-10,52,25,9,'#00091099');
   const beam=ctx.createLinearGradient(20,0,150,0);beam.addColorStop(0,'#fff5d159');beam.addColorStop(.35,'#ffedb71b');beam.addColorStop(1,'#fff6d000');
   for(const yy of [-7,7])polygon([[20,yy-3],[150,yy-30],[165,yy+28],[20,yy+3]],beam);
@@ -613,6 +631,7 @@ function drawCar(c){
   ctx.strokeStyle='#101e2b99';ctx.beginPath();ctx.moveTo(16,-9);ctx.lineTo(16,9);ctx.moveTo(-16,-9);ctx.lineTo(-16,9);ctx.stroke();
   rect(-2,-14,5,2,c.color);rect(-2,12,5,2,c.color);rounded(21,-10,4,6,1,'#fff1bf');rounded(21,4,4,6,1,'#fff1bf');
   rect(-25,-10,3,5,'#ff5264');rect(-25,5,3,5,'#ff5264');glow(-27,0,24,'#ff254019');
+  if(c.luxury){rect(23,-5,3,10,'#c2cdd3');rect(20,-10,4,2,'#e3faff');rect(20,8,4,2,'#e3faff');if(c.vehicleClass==='box')rounded(-29,-7,6,14,2,'#111b24');}
   rect(24,-4,2,8,'#08151f');rect(-25,-4,2,8,'#08151f');
   if(c.police||c.emergency){rect(-2,-8,5,16,'#142535');glow(0,-5,35,time%1<.5?'#368bff80':'#ff304960');glow(0,5,35,time%1<.5?'#ff304960':'#368bff80');rect(-2,-8,5,7,c.service==='fire'?'#ffcc44':'#47a0ff');rect(-2,1,5,7,'#ff4861');}
   if(c.crashed){ctx.globalAlpha=.7;polygon([[8,-11],[17,-8],[12,0],[21,7],[3,9]],'#151515');ctx.globalAlpha=.35;glow(0,-19,28,'#9aa0a780');ctx.globalAlpha=1;}
@@ -632,19 +651,19 @@ function drawPerson(x,y,angle,color,phase=0,isPlayer=false){
 const terrainTiles=new Map();
 function drawTerrain(){
   const scale=(w<800?1.04:1.32)*viewZoom;
-  const centerX=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x));
-  const centerY=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));
-  const startCol=Math.max(0,Math.floor((centerX-w/(2*scale))/block));
+  const centerX=Math.max(worldMin+w/(2*scale),Math.min(size-w/(2*scale),camera.x));
+  const centerY=Math.max(worldMin+h/(2*scale),Math.min(size-h/(2*scale),camera.y));
+  const startCol=Math.max(minCell,Math.floor((centerX-w/(2*scale))/block));
   const endCol=Math.min(gridSize-1,Math.floor((centerX+w/(2*scale))/block));
-  const startRow=Math.max(0,Math.floor((centerY-h/(2*scale))/block));
+  const startRow=Math.max(minCell,Math.floor((centerY-h/(2*scale))/block));
   const endRow=Math.min(gridSize-1,Math.floor((centerY+h/(2*scale))/block));
   for(let row=startRow;row<=endRow;row++)for(let col=startCol;col<=endCol;col++){
-    const key=row*gridSize+col;
+    const key=cellKey(row,col);
     let tile=terrainTiles.get(key);
     if(!tile){
       tile=document.createElement('canvas');tile.width=block;tile.height=block;
       const t=tile.getContext('2d');const type=cityBlocks[key].type;
-      t.fillStyle=type==='park'?'#234036':type==='plaza'?'#3b4652':'#2b343d';t.fillRect(0,0,block,block);
+      t.fillStyle=type==='villa'?'#446340':type==='park'?'#234036':type==='plaza'?'#3b4652':'#2b343d';t.fillRect(0,0,block,block);
       t.fillStyle='#586773';t.fillRect(0,0,70,block);t.fillRect(0,0,block,70);t.fillRect(348,0,52,block);t.fillRect(0,348,block,52);
       t.strokeStyle='#c4d0c020';t.lineWidth=1;
       for(let k=0;k<block;k+=16){t.beginPath();t.moveTo(54,k);t.lineTo(69,k);t.moveTo(k,54);t.lineTo(k,69);t.moveTo(349,k);t.lineTo(357,k);t.moveTo(k,349);t.lineTo(k,357);t.stroke()}
@@ -678,6 +697,7 @@ function drawLandmarks(){
   for(const area of cityBlocks){
     if(!visible(area.x+200,area.y+200,400))continue;
     const x=area.x,y=area.y;
+    if(area.type==='villa'){for(const tx of [94,245,310])for(const ty of [108,290])drawTree(x+tx,y+ty,20);rect(x+80,y+315,255,3,'#b7ad86');rect(x+160,y+285,35,28,'#82b4bd');}
     if(area.type==='park'){
       for(const tx of [113,155,258,306])for(const ty of [113,163,260,312])drawTree(x+tx,y+ty,18);
       ctx.fillStyle='#768a8d';ctx.beginPath();ctx.arc(x+201,y+211,31,0,7);ctx.fill();ctx.fillStyle='#163e52';ctx.beginPath();ctx.arc(x+201,y+211,25,0,7);ctx.fill();glow(x+201,y+211,35,'#62d6ec40');
@@ -707,7 +727,7 @@ function drawTower(x,y){
   ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#b0c9d1';ctx.fillText('ŽIŽKOVSKÁ VĚŽ',x,y+40);
 }
 function drawStreetProps(){
-  for(let row=0;row<gridSize;row++)for(let col=0;col<gridSize;col++){
+  for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){
     const x=col*block+65,y=row*block+180;if(!visible(x,y))continue;
     rect(x-6,y+4,16,22,'#060f1766');rounded(x-8,y,13,20,2,'#326660');rect(x-9,y,15,3,'#779d88');rect(x-5,y+5,7,1,'#0c302b');
     rect(x-3,y+56,5,32,'#080e16');rect(x-5,y+55,10,3,'#e1b766');
@@ -746,15 +766,15 @@ function drawBoundaryFog2d() {
   for (const edge of ['left', 'right', 'top', 'bottom']) {
     const horizontal = edge === 'left' || edge === 'right';
     const reversed = edge === 'right' || edge === 'bottom';
-    const outside = reversed ? size : 0;
-    const inside = reversed ? size-band : band;
+    const outside = reversed ? size : worldMin;
+    const inside = reversed ? size-band : worldMin+band;
     const gradient = horizontal ? ctx.createLinearGradient(outside, 0, inside, 0) : ctx.createLinearGradient(0, outside, 0, inside);
     gradient.addColorStop(0, '#465768');
     gradient.addColorStop(.4, '#465768cc');
     gradient.addColorStop(1, '#46576800');
     ctx.fillStyle = gradient;
-    if (horizontal) ctx.fillRect(reversed ? size-band : 0, 0, band, size);
-    else ctx.fillRect(0, reversed ? size-band : 0, size, band);
+    if (horizontal) ctx.fillRect(reversed ? size-band : worldMin, worldMin, band, worldSpan);
+    else ctx.fillRect(worldMin, reversed ? size-band : worldMin, worldSpan, band);
   }
 }
 function atmosphereColors() {
@@ -815,8 +835,8 @@ function drawWorldNpcMarkers() {
 function renderLegacy(){if(interior){renderInterior2d();return;}
   ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,atmosphereColors().sky);ctx.save();
   const scale=(w<800?1.04:1.32)*viewZoom;
-  const viewX=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x));
-  const viewY=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));
+  const viewX=Math.max(worldMin+w/(2*scale),Math.min(size-w/(2*scale),camera.x));
+  const viewY=Math.max(worldMin+h/(2*scale),Math.min(size-h/(2*scale),camera.y));
   ctx.translate(w/2-viewX*scale,h/2-viewY*scale);ctx.scale(scale,scale);
   drawTerrain();drawLandmarks();drawStreetProps();drawTrafficLights();drawStreetNames();
   for(const b of buildings)if(visible(b.x+b.w/2,b.y+b.h/2))drawBuilding(b);
@@ -842,11 +862,11 @@ function drawDistrictAtmosphere(){
 }
 function drawMap(){
   const mw=w<800?115:190,x=w-mw-26,y=h-mw-76,zoom=mapExpanded?cityMapZoom:nearbyMapZoom;
-  const span=size/zoom,s=mw/span,cx=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.x)),cy=mapExpanded&&cityMapZoom===1?size/2:Math.max(span/2,Math.min(size-span/2,player.y));
+  const span=worldSpan/zoom,s=mw/span,cx=mapExpanded&&cityMapZoom===1?(size+worldMin)/2:Math.max(worldMin+span/2,Math.min(size-span/2,player.x)),cy=mapExpanded&&cityMapZoom===1?(size+worldMin)/2:Math.max(worldMin+span/2,Math.min(size-span/2,player.y));
   rect(x-8,y-8,mw+16,mw+16,'#080f18ed');ctx.save();ctx.beginPath();ctx.rect(x,y,mw,mw);ctx.clip();ctx.translate(x-(cx-span/2)*s,y-(cy-span/2)*s);
-  rect(0,0,size*s,size*s,'#24353e');
+  rect(worldMin*s,worldMin*s,worldSpan*s,worldSpan*s,'#24353e');
   for(const area of cityBlocks){rect(area.x*s,area.y*s,block*s,block*s,area.type==='park'?'#365c48':area.type==='modern'?'#2e495a':area.type==='industrial'?'#4c4440':'#2c3840')}
-  for(let i=0;i<gridSize;i++){rect(i*block*s,0,52*s,size*s,'#69787f');rect(0,i*block*s,size*s,52*s,'#69787f')}
+  for(let i=minCell;i<gridSize;i++){rect(i*block*s,worldMin*s,52*s,worldSpan*s,'#69787f');rect(worldMin*s,i*block*s,worldSpan*s,52*s,'#69787f')}
   for(const b of buildings)rect(b.x*s,b.y*s,b.w*s,b.h*s,'#0d1b28');
   for (const marker of importantNpcMarkers(true)) {
     const radius = marker.target ? 4.8 : 3.2;
@@ -890,13 +910,59 @@ const deliveryRoutes=[
   {x:865,y:7655,label:'Kontakt · Karlín'}
 ];
 let activeContract=null,contractCount=0;
+const districtContacts=[
+  {id:'zizkov',district:'ŽIŽKOV',speaker:'LENKA · SOUSEDKA',x:667,y:455},
+  {id:'karlin',district:'KARLÍN',speaker:'ADAM · KURÝR',x:867,y:7655},
+  {id:'vinohrady',district:'VINOHRADY',speaker:'TEREZA · FLORISTKA',x:8067,y:8455},
+  {id:'centrum',district:'NOVÉ MĚSTO',speaker:'MARTIN · ANALYTIK',x:14467,y:4855},
+  {id:'docks',district:'HOLEŠOVICE · DOKY',speaker:'JIRKA · DISPEČER',x:5267,y:15655},
+  ...pragueDistrictAnchors.map((d,i)=>({id:'p6-'+i,district:d.name,speaker:['ALENA · SPRÁVKYNĚ VIL','DAVID · SBĚRATEL','PETR · RESTAURÁTOR','KLÁRA · STUDENTKA','SOFIE · ZAHRADNICE','ONDŘEJ · PRŮVODCE'][i],x:Math.floor(d.x/block)*block+67,y:Math.floor(d.y/block)*block+255}))
+];
+const districtJobs=districtContacts.flatMap((contact,i)=>{
+  const next=districtContacts[(i+1)%districtContacts.length];
+  const topics=[['Sousedská výpomoc','Doruč ztracené klíče správci domu.'],['Ranní rozvoz','Doruč podklady do kavárny.'],['Květiny pro sousedy','Odnes objednávku na druhý konec čtvrti.'],['První investiční analýza','Doruč analytické podklady brokerovi.'],['Dokumenty z doků','Předej přepravní listy dispečerovi.'],['Zahrady Ořechovky','Doruč plán obnovy zahrady majiteli vily.'],['Veterán na Hanspaulce','Odnes servisní dokumentaci sběrateli.'],['Oprava fasády','Předej návrh restaurátorovi.'],['Studentská brigáda','Doruč vybavení pro univerzitní projekt.'],['Zelená Bubeneč','Předej sazenice správci parku.'],['Hradčanská procházka','Dones průvodci podklady pro novou trasu.']];
+  return [
+    {id:contact.id+'-1',contactId:contact.id,district:contact.district,title:topics[i][0],text:topics[i][1],receiver:'MÍSTNÍ KONTAKT',target:{x:contact.x+400,y:contact.y,label:'Předání · '+contact.district},reward:900+i*350,xp:65+i*5},
+    {id:contact.id+'-2',contactId:contact.id,district:contact.district,title:'Kontakty za hranicí čtvrti',text:'Doruč doporučení kontaktu ve čtvrti '+next.district+'.',receiver:next.speaker,target:{x:next.x,y:next.y,label:next.speaker},reward:2100+i*500,xp:110+i*5,requires:contact.id+'-1'}
+  ];
+});
+let activeDistrictJob=null,completedDistrictJobs=[];
+for(const contact of districtContacts)people.push({x:contact.x,y:contact.y,angle:-Math.PI/2,color:'#d3a766',stationary:true,role:'quest',contactId:contact.id});
+for(let i=0;i<700;i++){const axis=i%2===0;people.push({x:axis?between(worldMin,0):Math.floor(between(minCell,0))*block+67,y:axis?Math.floor(between(minCell,0))*block+67:between(worldMin,0),axis,dir:i%3?1:-1,color:i%2?'#73816a':'#755c72'});}
+for(let i=0;i<90;i++){const model=lifeSystem.vehicleCatalog[i%lifeSystem.vehicleCatalog.length];cars.push({x:Math.floor(between(minCell,0))*block+35,y:Math.floor(between(minCell,0))*block+35,axis:i%2===0,angle:i%2?Math.PI/2:0,speed:between(40,80),parked:false,color:model.color,vehicleClass:model.body,modelId:model.id,luxury:true});}
+function nearestDistrictContact(){return interior||player.car?null:districtContacts.find(contact=>distance(player,contact)<45)||null;}
+function showDistrictJobs(contact=null){
+  if(!started||paused||dialogOpen||interior)return false;
+  dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('choices').replaceChildren();
+  $('speaker').textContent=contact?contact.speaker:'MĚSTSKÉ KONTAKTY';$('dialogTitle').textContent=contact?contact.district:'Úkoly ze všech čtvrtí';
+  $('dialogText').textContent=activeDistrictJob?'Aktivní úkol sleduj na mapě. Po dokončení se vrátí hlavní příběh.':'Místní lidé mají práci. První úkol odemkne navazující cestu do další čtvrti. Vyber trasu a dojdi na označené místo.';
+  for(const job of districtJobs.filter(job=>!contact||job.contactId===contact.id)){
+    const done=completedDistrictJobs.includes(job.id),unlocked=!job.requires||completedDistrictJobs.includes(job.requires),button=document.createElement('button');
+    button.textContent=job.district+' · '+job.title+' · '+formatMoney(job.reward)+' · '+job.xp+' XP'+(done?' · HOTOVO':!unlocked?' · nejdřív dokonči místní úkol':'');
+    button.disabled=done||!unlocked||Boolean(activeDistrictJob)||Boolean(activeContract);
+    button.onclick=()=>acceptDistrictJob(job.id);$('choices').append(button);
+  }
+  if(activeDistrictJob){const cancel=document.createElement('button');cancel.textContent='Zrušit místní úkol';cancel.onclick=()=>{activeDistrictJob=null;closeContracts();saveProgress();updateHud();};$('choices').append(cancel);}
+  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+}
+function acceptDistrictJob(id){
+  const job=districtJobs.find(item=>item.id===id);
+  if(!started||interior||activeDistrictJob||activeContract||!job||completedDistrictJobs.includes(id)||(job.requires&&!completedDistrictJobs.includes(job.requires)))return false;
+  activeDistrictJob=id;closeContracts();saveProgress();updateHud();notify('Přijato · '+job.title);return true;
+}
+function completeDistrictJob(){
+  const job=districtJobs.find(item=>item.id===activeDistrictJob);
+  if(!job||interior||distance(player,job.target)>=65||completedDistrictJobs.includes(job.id))return false;
+  completedDistrictJobs.push(job.id);activeDistrictJob=null;player.cash=Math.min(1000000,player.cash+job.reward);player.rep+=10;awardXp(job.xp);saveProgress();updateHud();notify('Hotovo · +'+formatMoney(job.reward)+' · +'+job.xp+' XP');return true;
+}
+
 function playerLevel(){let level=1;while(level<levelThresholds.length&&player.xp>=levelThresholds[level])level++;return level}
 function awardXp(amount){
   const oldLevel=playerLevel();player.xp+=amount;
   if(playerLevel()>oldLevel){const unlocked=substances.filter(item=>item.level>oldLevel&&item.level<=playerLevel());notify('LEVEL '+playerLevel()+' · '+(unlocked.length?'Odemčeno: '+unlocked.map(item=>item.name).join(', '):'Nová úroveň zkušeností'));}
   saveProgress();
 }
-function targetAvailable(){return Boolean(activeContract)||!complete}
+function targetAvailable(){return Boolean(activeDistrictJob)||Boolean(activeContract)||!complete}
 function updateProgressionHud(){
   const level=playerLevel(),minimum=levelThresholds[level-1],maximum=levelThresholds[level];
   $('level').textContent=level;$('xpText').textContent=maximum?(player.xp-minimum)+' / '+(maximum-minimum)+' XP':'MAX LEVEL · '+player.xp+' XP';
@@ -909,20 +975,21 @@ function openContracts(){
   dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent='KONTAKTY · LEVEL '+playerLevel();$('dialogTitle').textContent='Zakázky z ulice';
   $('dialogText').textContent=activeContract?'Aktivní zásilka: '+substances.find(item=>item.id===activeContract.substanceId).name+'. Doruč ji označenému kontaktu.':complete?'Vyber zakázku. Dražší kategorie se odemykají s levelem. Odměny jsou herní hodnoty.':'Další zakázky se zpřístupní po dokončení první kapitoly. Kategorie můžeš prohlédnout už teď.';
   $('choices').replaceChildren();
+  const districtButton=document.createElement('button');districtButton.textContent='Místní úkoly · všechny čtvrti';districtButton.onclick=()=>{closeContracts();showDistrictJobs();};$('choices').append(districtButton);
   for(const item of substances){
     const button=document.createElement('button'),unlocked=playerLevel()>=item.level;
     button.className='substanceCard';button.style.borderLeftColor=item.color;
     const title=document.createElement('strong');title.textContent=item.name+' · LVL '+item.level;
     const details=document.createElement('span');details.textContent=unlocked?item.category+' · '+item.reward.toLocaleString('cs-CZ')+' Kč · '+item.xp+' XP · riziko '+Math.ceil(item.risk)+'/5':'Zamčeno · odemkne se na levelu '+item.level;
-    button.append(title,details);button.disabled=!unlocked||!complete||Boolean(activeContract);button.onclick=()=>acceptContract(item.id);$('choices').append(button);
+    button.append(title,details);button.disabled=!unlocked||!complete||Boolean(activeContract)||Boolean(activeDistrictJob);button.onclick=()=>acceptContract(item.id);$('choices').append(button);
   }
   if(activeContract){const cancel=document.createElement('button');cancel.textContent='Zrušit zakázku (bez odměny a XP)';cancel.onclick=()=>{activeContract=null;closeContracts();saveProgress();updateHud();notify('Zakázka zrušena.');};$('choices').append(cancel)}
   const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);
 }
-function closeContracts(){lifeMenu=null;activeShop=null;dialogOpen=false;$('dialog').classList.add('hidden');keys.clear()}
+function closeContracts(){$('dialog').classList.remove('marketDialog');lifeMenu=null;activeShop=null;dialogOpen=false;$('dialog').classList.add('hidden');keys.clear()}
 function acceptContract(id){
   const item=substances.find(entry=>entry.id===id);
-  if(!item||!complete||activeContract||playerLevel()<item.level)return false;
+  if(!item||!complete||activeContract||activeDistrictJob||playerLevel()<item.level)return false;
   activeContract={substanceId:id,routeIndex:contractCount%deliveryRoutes.length};
   player.heat=Math.min(5,player.heat+item.risk);closeContracts();saveProgress();updateHud();notify(item.name+' · zakázka přijata');return true;
 }
@@ -933,12 +1000,14 @@ function completeContract(){
   notify('Doručeno: '+item.name+' · +'+item.reward.toLocaleString('cs-CZ')+' Kč · +'+item.xp+' XP');awardXp(item.xp);saveProgress();updateHud();return true;
 }
 function saveProgress(){
-  try{localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount}));}catch{}
+  try{syncOwnedVehiclePositions();localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount,activeDistrictJob,completedDistrictJobs,playerPosition:interior?interior.outside:{x:player.x,y:player.y,angle:player.angle}}));}catch{}
 }
 function restoreProgress(){
   try{
     const saved=JSON.parse(localStorage.getItem('street-life-progress-v1')||'null');if(!saved||saved.version!==1)return;
     if(!['xp','cash','rep','missionIndex','contractCount'].every(key=>Number.isSafeInteger(saved[key])&&saved[key]>=0)||saved.missionIndex>missions.length-1||typeof saved.legal!=='boolean'||typeof saved.complete!=='boolean')return;
+    completedDistrictJobs=Array.isArray(saved.completedDistrictJobs)?[...new Set(saved.completedDistrictJobs.filter(id=>districtJobs.some(job=>job.id===id)))]:[];
+    activeDistrictJob=districtJobs.some(job=>job.id===saved.activeDistrictJob&&!completedDistrictJobs.includes(job.id)&&(!job.requires||completedDistrictJobs.includes(job.requires)))?saved.activeDistrictJob:null;
     lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;storyPath=['street','clean'].includes(saved.storyPath)?saved.storyPath:null;contractCount=saved.contractCount;
     if(Number.isFinite(saved.health)&&saved.health>=0&&saved.health<=100)player.health=saved.health;
     if(!storyPath&&missionIndex>firstChapterEnd)storyPath=missionIndex>=cleanChapterStart?'clean':'street';
@@ -946,14 +1015,16 @@ function restoreProgress(){
     if(missionIndex>=cleanChapterStart)legal=true;
     if(legal)setServiceMission();
     const contract=saved.activeContract;
-    if(complete&&contract&&Number.isInteger(contract.routeIndex)&&contract.routeIndex>=0&&contract.routeIndex<deliveryRoutes.length&&substances.some(item=>item.id===contract.substanceId&&item.level<=playerLevel()))activeContract={substanceId:contract.substanceId,routeIndex:contract.routeIndex};
+    if(!activeDistrictJob&&complete&&contract&&Number.isInteger(contract.routeIndex)&&contract.routeIndex>=0&&contract.routeIndex<deliveryRoutes.length&&substances.some(item=>item.id===contract.substanceId&&item.level<=playerLevel()))activeContract={substanceId:contract.substanceId,routeIndex:contract.routeIndex};
+    const pos=saved.playerPosition;if(!interior&&pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.y)&&!collision(pos.x,pos.y,10)){player.x=pos.x;player.y=pos.y;player.angle=Number.isFinite(pos.angle)?pos.angle:0;camera.x=pos.x;camera.y=pos.y;}
+    restoreOwnedVehicles();
     if(activeContract)player.heat=substances.find(item=>item.id===activeContract.substanceId).risk;
   }catch{}
 }
 function setServiceMission(){missions[1]={title:'Poctivá směna',text:'Dojdi do autoservisu. Ještě dnes potřebují pomoc.',x:1070,y:315,label:'Pavel · autoservis',speaker:'PAVEL',dialog:'Potřebuju někoho na noční směnu. Tady máš devět stovek.',choices:[['Dokončit směnu. (+900 Kč)','deliver']]};}
 
 $('contracts').onclick=openContracts;
-window.streetLifeScene={size,block,gridSize,buildingBuckets,districtAt,buildings,cars,people,lamps,cityBlocks,transitStops,transitLines,trafficLights,trafficState,incidents,emergencyVehicles,player,onReady(){notify('3D Žižkov · nový renderer je aktivní');$('renderMode').textContent='3D';},onError(message){$('renderMode').textContent='2D';notify(message)}};
+window.streetLifeScene={size,worldMin,worldSpan,minCell,cellKey,block,gridSize,buildingBuckets,districtAt,districtContacts,buildings,cars,people,lamps,cityBlocks,transitStops,transitLines,trafficLights,trafficState,incidents,emergencyVehicles,player,onReady(){notify('3D Žižkov · nový renderer je aktivní');$('renderMode').textContent='3D';},onError(message){$('renderMode').textContent='2D';notify(message)}};
 function render(){
   if(!window.streetLifeRenderer){renderLegacy();return;}
   try{
@@ -964,12 +1035,14 @@ function render(){
 }
 function renderInterior2d(){ctx.setTransform(dpr,0,0,dpr,0,0);rect(0,0,w,h,'#101822');const scale=Math.min(2.5,(h-130)/interior.depth)*viewZoom;ctx.save();ctx.translate(w/2-interior.width*scale/2,h/2-interior.depth*scale/2);ctx.scale(scale,scale);rect(0,0,interior.width,interior.depth,'#9b8874');ctx.strokeStyle='#665648';for(let y=0;y<interior.depth;y+=12){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(interior.width,y);ctx.stroke()}for(const item of interiorFurniture())rect(item.x,item.y,item.w,item.h,'#536a66');if(isButcherRoom()){drawPerson(interior.width*.29,interior.depth*.35,Math.PI/2,'#c1b4a4',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText('KAREL · ŘEZNÍK',interior.width*.12,interior.depth*.3);}if(isLifeService()){const service=lifeServicePoint(),kind=lifeServiceKind();drawPerson(service.x,service.y,Math.PI/2,kind==='bank'?'#2f5f89':kind==='office'?'#6c5c8a':kind==='property'?'#7a6348':'#5b7d68',0,false);ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.fillText(kind==='bank'?'BANKÉŘ':kind==='office'?'ÚŘEDNÍK':kind==='property'?'SPRÁVCE':'OBSLUHA',service.x-28,service.y-18);}const points=interiorPoints();for(const [name,point]of Object.entries(points)){glow(point.x,point.y,20,name==='exit'?'#ca7aff88':'#c5f46b77');ctx.font='10px Arial';ctx.fillStyle='#fff';ctx.fillText(name==='up'?'↑':name==='down'?'↓':'VEN',point.x-9,point.y)}drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ff';ctx.beginPath();ctx.arc(player.x,player.y,14,0,7);ctx.stroke();ctx.restore();}
 function isApartmentBuilding() {
-  return Boolean(interior && interior.floor === 0 && !interior.building.name && ['residential', 'garden', 'old', 'modern'].includes(interior.building.type));
+  return Boolean(interior && interior.floor === 0 && !interior.building.name && ['residential', 'garden', 'old', 'modern', 'villa'].includes(interior.building.type));
 }
 function lifeServiceKind() {
   if (!interior || interior.floor !== 0) return null;
   const name = interior.building.name;
   if (name === 'BANKA') return 'bank';
+  if (name === 'BURZA PRAHA') return 'exchange';
+  if (name?.endsWith('AUTOSALON')) return 'dealer';
   if (name === 'UBYTOVNA') return 'hostel';
   if (['POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(name)) return 'shop';
   if (name === 'ÚŘAD PRÁCE') return 'office';
@@ -983,22 +1056,26 @@ function formatUnits(units) { return (units / 100).toLocaleString('cs-CZ', { min
 function choiceInfo(text) { const info = document.createElement('p'); info.textContent = text; $('choices').append(info); return info; }
 function propertyOffer() {
   const district = districtAt(interior.building.x, interior.building.y);
-  const multiplier = district.style === 'modern' ? 4.4 : district.style === 'garden' ? 3.2 : district.style === 'old' ? 2.4 : 1.8;
+  const multiplier = district.style === 'villa' ? 6.5 : district.style === 'modern' ? 4.4 : district.style === 'garden' ? 3.2 : district.style === 'old' ? 2.4 : 1.8;
   const meters = Math.max(28, Math.round((interior.building.w * interior.building.h) / 420));
   const price = Math.min(950000, Math.round((meters * 6500 * multiplier) / 1000) * 1000);
-  return { id: Math.round(interior.building.x) + '-' + Math.round(interior.building.y), name: 'Byt ' + meters + ' m² · ' + district.name.split(' · ')[0], district: district.name, price, rent: Math.max(3500, Math.round(price / 1800 / 100) * 100) };
+  return { id: Math.round(interior.building.x) + '-' + Math.round(interior.building.y), name: (district.style === 'villa' ? 'Vila ' : 'Byt ') + meters + ' m² · ' + district.name.split(' · ')[0], district: district.name, price, rent: Math.max(3500, Math.round(price / 1800 / 100) * 100) };
 }
 function lifeButton(label, action, value, locked = false) {
   const button = document.createElement('button');
   button.textContent = label; button.disabled = locked;
   button.onclick = () => {
     if (!dialogOpen || !lifeMenu) return;
-    const remote = ['bill', 'sms'].includes(action) || (lifeMenu === 'phone' && lifeSystem.has('mobileBank', lifeEntitlements) && ['deposit', 'withdraw', 'repay'].includes(action));
+    const remote = ['bill', 'sms'].includes(action)||(lifeMenu==='phone'&&action==='payLease') || (lifeMenu === 'phone' && lifeSystem.has('mobileBank', lifeEntitlements) && ['deposit', 'withdraw', 'repay'].includes(action));
     if (!remote && (!isLifeService() || distance(player, lifeServicePoint()) > 45)) return;
     const kind = lifeServiceKind();
-    if (!remote && ((['account', 'deposit', 'withdraw', 'loan', 'repay', 'trade'].includes(action) && kind !== 'bank') || (['rent', 'sleep'].includes(action) && kind !== 'hostel') || (action === 'buy' && kind !== 'shop') || (action === 'business' && kind !== 'office') || (['rentFlat', 'buyProperty', 'mortgageProperty', 'rentOutProperty', 'collectRent', 'payMortgage'].includes(action) && kind !== 'property'))) return;
+    if (!remote && ((['account', 'deposit', 'withdraw', 'loan', 'repay', 'trade'].includes(action) && !['bank','exchange'].includes(kind)) || (['rent', 'sleep'].includes(action) && kind !== 'hostel') || (action === 'buy' && kind !== 'shop') || (action === 'business' && kind !== 'office') || (['buyVehicle','leaseVehicle','sellVehicle','payLease'].includes(action) && kind !== 'dealer') || (['rentFlat', 'buyProperty', 'mortgageProperty', 'rentOutProperty', 'collectRent', 'payMortgage'].includes(action) && kind !== 'property'))) return;
+    if (['buyVehicle','leaseVehicle'].includes(action)&&!dealerOffers().some(model=>model.id===value)) return;
+    const deliveryPoint=['buyVehicle','leaseVehicle'].includes(action)?freeDealerSlot(interior.building):null;
+    if(['buyVehicle','leaseVehicle'].includes(action)&&!deliveryPoint){notify('Před salonem není volné místo. Uvolni parkoviště.');return;}
     if (!lifeSystem.act(lifeState, player, action, value, lifeEntitlements)) { notify('Akce není dostupná nebo nemáš dost peněz.'); return; }
-    saveProgress(); updateHud();
+    if(deliveryPoint){const owned=lifeState.vehicles[lifeState.vehicles.length-1];owned.position=deliveryPoint;spawnOwnedVehicle(owned);notify('Klíče převzaty. Vůz čeká před salonem · F pro nastoupení.');}
+    reconcileOwnedVehicles();saveProgress(); updateHud();
     const menu = lifeMenu; closeContracts(); openLifeMenu(menu);
   };
   $('choices').append(button);
@@ -1006,7 +1083,7 @@ function lifeButton(label, action, value, locked = false) {
 function bankChoices(mobile = false) {
   choiceInfo('Zůstatek účtu: ' + formatMoney(lifeState.balance) + ' · portfolio: ' + formatMoney(lifeSystem.portfolioValue(lifeState)) + ' · net worth: ' + formatMoney(lifeSystem.netWorth(lifeState, player)));
   if (!lifeState.account) { if (!mobile) lifeButton('Založit účet · zdarma', 'account'); return; }
-  for (const amount of [100, 500, 1000]) {
+  for (const amount of [100, 500, 1000,10000,50000,100000]) {
     lifeButton('Vložit ' + formatMoney(amount), 'deposit', amount, player.cash < amount);
     lifeButton('Vybrat ' + formatMoney(amount), 'withdraw', amount, lifeState.balance < amount);
   }
@@ -1019,7 +1096,7 @@ function bankChoices(mobile = false) {
   }
   if (!mobile) {
     choiceInfo('Směnárna a shitcoin broker · nákup jde z účtu, prodej se vrací na účet.');
-    for (const asset of lifeSystem.market(lifeState)) {
+    for (const asset of lifeSystem.market(lifeState).filter(asset=>['fiat','shitcoin'].includes(asset.kind))) {
       const units = lifeState.portfolio?.[asset.id] || 0;
       lifeButton('Koupit ' + asset.id + ' za 500 Kč · kurz ' + asset.price + ' Kč', 'trade', { type: 'buy', asset: asset.id, czk: 500 }, lifeState.balance < 500);
       lifeButton('Prodat vše ' + asset.id + ' · držíš ' + formatUnits(units), 'trade', { type: 'sell', asset: asset.id, units: 'all' }, units <= 0);
@@ -1028,6 +1105,77 @@ function bankChoices(mobile = false) {
     if ((lifeState.portfolio?.USD || 0) > 0) lifeButton('Swap USD → BetonCoin', 'trade', { type: 'swap', from: 'USD', to: 'BETON', units: 'all' });
     if ((lifeState.portfolio?.BETON || 0) > 0) lifeButton('Swap BetonCoin → EUR', 'trade', { type: 'swap', from: 'BETON', to: 'EUR', units: 'all' });
   }
+}
+
+let selectedStock='PMOB',stockBudget=1000;
+function marketHistory(id,count=30){return Array.from({length:count},(_,i)=>{const tick=Math.max(0,(lifeState.day-1)*10+Math.floor(lifeState.elapsed/30)-(count-1-i));return lifeSystem.marketPrice({day:1+Math.floor(tick/10),elapsed:(tick%10)*30},id);});}
+function exchangeChoices(){
+  const summary=document.createElement('div');summary.className='marketSummary';
+  const cost=Object.values(lifeState.costBasis).reduce((sum,n)=>sum+n,0),worth=lifeSystem.portfolioValue(lifeState),pnl=worth-cost;
+  for(const [label,value]of [['VOLNÉ PENÍZE',formatMoney(lifeState.balance)],['PORTFOLIO',formatMoney(worth)],['OTEVŘENÝ ZISK / ZTRÁTA',(pnl>=0?'+':'')+formatMoney(pnl)],['UZAVŘENÝ ZISK / ZTRÁTA',formatMoney(lifeState.realizedPnL)]]){const card=document.createElement('div'),title=document.createElement('small'),number=document.createElement('strong');title.textContent=label;number.textContent=value;card.append(title,number);summary.append(card);}$('choices').append(summary);
+  choiceInfo('Herní burza · fiktivní firmy a ETF. Kotace se mění každých 30 sekund aktivní hry. Nákup 1 %, prodej 2 %; poplatky jsou započtené.');
+  if(!lifeState.account){choiceInfo('Nejdřív si otevři bankovní účet v bance.');return;}
+  const stocks=lifeSystem.market(lifeState).filter(asset=>['stock','fund'].includes(asset.kind)),tickers=document.createElement('div');tickers.className='stockTickers';
+  for(const stock of stocks){const hist=marketHistory(stock.id),previous=hist[hist.length-2],change=(stock.price/previous-1)*100,button=document.createElement('button');button.className=stock.id===selectedStock?'selected':'';button.textContent=stock.id+' · '+stock.price.toFixed(2)+' Kč · '+(change>=0?'+':'')+change.toFixed(2)+' %';button.onclick=()=>{selectedStock=stock.id;closeContracts();openLifeMenu('service');};tickers.append(button);}$('choices').append(tickers);
+  const stock=stocks.find(item=>item.id===selectedStock)||stocks[0],history=marketHistory(stock.id),low=Math.min(...history)*.99,high=Math.max(...history)*1.01;
+  const points=history.map((price,i)=>(20+i*600/(history.length-1)).toFixed(1)+','+(155-(price-low)/(high-low)*120).toFixed(1)).join(' '),chart=document.createElement('div');chart.className='stockChart';
+  chart.innerHTML='<svg viewBox="0 0 640 185" role="img" aria-label="Historie kurzu '+stock.id+'"><path d="M20 35H620M20 95H620M20 155H620" stroke="#314553"/><polyline points="'+points+'" fill="none" stroke="#bdf071" stroke-width="3"/><text x="20" y="178" fill="#aab9c5" font-size="11">Historie kotací · 30 bodů</text><text x="480" y="22" fill="#bdf071" font-size="14">'+stock.price.toFixed(2)+' CZK</text></svg>';$('choices').append(chart);
+  const units=lifeState.portfolio[stock.id],basis=lifeState.costBasis[stock.id],value=Math.floor(units*stock.price/100);
+  choiceInfo(stock.name+' · '+lifeSystem.assets[stock.id].sector+' · držíš '+formatUnits(units)+' kusů · průměrná nákupní cena '+(units?basis*100/units:0).toFixed(2)+' Kč · výnos '+formatMoney(value-basis));
+  const label=document.createElement('label'),input=document.createElement('input');label.className='orderBudget';label.textContent='Částka objednávky v Kč';input.type='number';input.min='100';input.max='1000000';input.step='100';input.value=String(stockBudget);input.oninput=()=>{stockBudget=Number(input.value);};label.append(input);$('choices').append(label);
+  const buy=document.createElement('button');buy.textContent='Koupit '+stock.id+' · potvrdit tržní objednávku';buy.onclick=()=>submitExchangeOrder(stock.id,'buy');$('choices').append(buy);
+  lifeButton('Prodat celou pozici '+stock.id+' · odhad '+formatMoney(Math.floor(value*.98)),'trade',{type:'sell',asset:stock.id,units:'all'},!units);
+  choiceInfo('Výpis provedených obchodů');
+  for(const order of lifeState.orders.slice(-6).reverse())choiceInfo('Den '+order.day+' · '+(order.side==='buy'?'NÁKUP':'PRODEJ')+' '+order.id+' · '+formatUnits(order.units)+' ks @ '+order.price.toFixed(2)+' Kč · '+formatMoney(order.total)+' · poplatek '+formatMoney(order.fee));
+  if(!lifeState.orders.length)choiceInfo('Zatím žádná objednávka. Vyber titul, nastav částku a potvrď nákup.');
+}
+function submitExchangeOrder(id,side){
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='exchange'||distance(player,lifeServicePoint())>45||!['stock','fund'].includes(lifeSystem.assets[id]?.kind))return false;
+  if(side!=='buy'||!Number.isSafeInteger(stockBudget)||stockBudget<100||stockBudget>1000000||!lifeSystem.act(lifeState,player,'trade',{type:'buy',asset:id,czk:stockBudget})){notify('Zkontroluj částku a zůstatek účtu.');return false;}
+  saveProgress();updateHud();notify('Objednávka provedena · '+id);closeContracts();openLifeMenu('service');return true;
+}
+function dealerOffers(){const brand=interior?.building.name.split(' ')[0].toLowerCase();return lifeSystem.vehicleCatalog.filter(model=>model.dealer===brand);}
+function freeDealerSlot(building){
+  const col=Math.floor(building.x/block),row=Math.floor(building.y/block);
+  for(const offset of [0,1,-1,2,-2])for(const yy of [220,285,95]){const point={x:(col+offset)*block+61,y:row*block+yy,angle:Math.PI/2};if(!carCollision(point.x,point.y,point.angle)&&!cars.some(car=>distance(car,point)<58))return point;}
+  return null;
+}
+function spawnOwnedVehicle(owned){
+  if(cars.some(car=>car.ownedId===owned.id))return true;
+  const model=lifeSystem.vehicleCatalog.find(item=>item.id===owned.modelId);if(!model)return false;
+  let point=owned.position;
+  if(!point||carCollision(point.x,point.y,point.angle)||cars.some(car=>distance(car,point)<45)){const building=buildings.find(b=>b.name===model.dealer.toUpperCase()+' AUTOSALON');point=freeDealerSlot(building);}
+  if(!point)return false;owned.position={...point};
+  cars.push({...point,axis:false,speed:0,parked:true,color:model.color,modelId:model.id,vehicleClass:model.body,luxury:true,maxSpeed:model.speed,ownedId:owned.id});return true;
+}
+function syncOwnedVehiclePositions(){for(const owned of lifeState.vehicles){const car=cars.find(item=>item.ownedId===owned.id);if(car)owned.position={x:car.x,y:car.y,angle:car.angle};}}
+function restoreOwnedVehicles(){
+  for(let i=cars.length-1;i>=0;i--)if(cars[i].ownedId){if(player.car===cars[i])player.car=null;cars.splice(i,1);}
+  for(const owned of lifeState.vehicles)spawnOwnedVehicle(owned);
+}
+function reconcileOwnedVehicles(){
+  for(let i=cars.length-1;i>=0;i--)if(cars[i].ownedId&&!lifeState.vehicles.some(owned=>owned.id===cars[i].ownedId)){if(player.car===cars[i]){player.car=null;player.x=cars[i].x+38;player.y=cars[i].y;}cars.splice(i,1);}
+}
+function dealerChoices(){
+  choiceInfo('Autorizovaný salon herních značek · nákup, výkup a leasing. Ceny jsou přizpůsobené herní ekonomice. Platba z hotovosti a účtu; bankovní účet je podmínkou smlouvy.');
+  const funds=player.cash+lifeState.balance;
+  for(const model of dealerOffers()){
+    const card=document.createElement('div');card.className='dealerCard';
+    const preview=document.createElement('div');preview.className='carPreview '+model.body;preview.style.setProperty('--car-paint',model.color);preview.setAttribute('role','img');preview.setAttribute('aria-label',model.name);
+    const title=document.createElement('strong');title.textContent=model.name;const details=document.createElement('p');details.textContent=model.description+' · cena '+formatMoney(model.price);
+    card.append(preview,title,details);$('choices').append(card);
+    const remaining=Math.ceil(model.price*.8*1.12),payment=Math.ceil(remaining/12),down=Math.ceil(model.price*.2);
+    lifeButton('Koupit '+model.name+' · '+formatMoney(model.price),'buyVehicle',model.id,!lifeState.account||funds<model.price);
+    choiceInfo('Leasing: akontace '+formatMoney(down)+' + 12 × '+formatMoney(payment)+' každé 3 herní dny. Dluh '+formatMoney(remaining)+' včetně 12% navýšení.');
+    lifeButton('Podepsat leasing '+model.name+' · '+formatMoney(down)+' dnes','leaseVehicle',model.id,!lifeState.account||funds<down);
+  }
+  choiceInfo('Tvoje garáž · výkup včetně vyrovnání leasingu');
+  for(const owned of lifeState.vehicles){const model=lifeSystem.vehicleCatalog.find(item=>item.id===owned.modelId),sale=lifeSystem.resaleValue(lifeState,owned),debt=owned.lease?.remaining||0;
+    choiceInfo(model.name+' · '+owned.id+' · výkup '+formatMoney(sale)+(debt?' · leasingový dluh '+formatMoney(debt)+' · splatnost den '+owned.lease.due:' · plně ve tvém vlastnictví'));
+    lifeButton('Prodat '+model.name+' · '+(sale-debt>=0?'výplata ':'doplatek ')+formatMoney(Math.abs(sale-debt)),'sellVehicle',owned.id,sale-debt<0&&funds<debt-sale);
+    if(debt)lifeButton('Zaplatit splátku '+formatMoney(Math.min(owned.lease.payment,debt)),'payLease',owned.id,lifeState.day<owned.lease.due||funds<Math.min(owned.lease.payment,debt));
+  }
+  if(!lifeState.vehicles.length)choiceInfo('Garáž je prázdná. Po podpisu smlouvy se auto objeví před salonem.');
 }
 function officeChoices() {
   const worth = lifeSystem.netWorth(lifeState, player), funds = player.cash + lifeState.balance;
@@ -1053,24 +1201,28 @@ function propertyChoices() {
 function openLifeMenu(mode) {
   if (!started || paused || dialogOpen || (mode === 'service' && (!isLifeService() || distance(player, lifeServicePoint()) > 45))) return false;
   lifeMenu = mode; dialogOpen = true; keys.clear();
+  $('dialog').classList.toggle('marketDialog',mode==='service'&&['exchange','dealer'].includes(lifeServiceKind()));
   $('dialog').classList.remove('hidden'); $('choices').replaceChildren();
   const kind = lifeServiceKind(), name = mode === 'phone' ? 'TELEFON' : (interior.building.name || 'SPRÁVCE DOMU');
   $('speaker').textContent = name + ' · DEN ' + lifeState.day;
-  $('dialogTitle').textContent = mode === 'phone' ? 'Zprávy a účty' : kind === 'hostel' ? 'Postel na jednu noc' : kind === 'bank' ? 'Bankovní přepážka a broker' : kind === 'office' ? 'Živnostenské okénko' : kind === 'property' ? 'Bydlení a nemovitosti' : 'Co potřebuješ?';
+  $('dialogTitle').textContent = mode === 'phone' ? 'Zprávy a účty' : kind === 'hostel' ? 'Postel na jednu noc' : kind === 'bank' ? 'Bankovní přepážka a broker' : kind === 'office' ? 'Živnostenské okénko' : kind === 'property' ? 'Bydlení a nemovitosti' : kind==='exchange'?'Praha Exchange · investiční terminál':kind==='dealer'?'Autorizovaný prodejce · klíče do ruky':'Co potřebuješ?';
   $('dialogText').textContent = 'Hotovost ' + player.cash + ' Kč · účet ' + lifeState.balance + ' Kč. Jeden den = 5 minut aktivní hry. ' + (kind === 'hostel' ? 'Nocleh platíš předem, spánek doplní 40 zdraví a posune den.' : '');
-  if (kind === 'hostel') {
+  if (mode === 'service' && kind === 'hostel') {
     lifeButton('Pronajmout postel · 150 Kč', 'rent', 'bed', Boolean(lifeState.rental) || player.cash < 150);
     lifeButton('Soukromý pokoj · 450 Kč · balíček Domov', 'rent', 'room', !lifeSystem.has('room', lifeEntitlements) || Boolean(lifeState.rental) || player.cash < 450);
     lifeButton('Vyspat se · +40 zdraví', 'sleep', null, !lifeState.rental);
-  } else if (kind === 'bank') bankChoices();
-  else if (kind === 'office') officeChoices();
-  else if (kind === 'property') propertyChoices();
+  } else if (mode === 'service' && kind === 'bank') bankChoices();
+  else if (mode === 'service' && kind === 'exchange') exchangeChoices();
+  else if (mode === 'service' && kind === 'dealer') dealerChoices();
+  else if (mode==='service'&&kind === 'office') officeChoices();
+  else if (mode==='service'&&kind === 'property') propertyChoices();
   else if (mode !== 'phone') for (const item of lifeSystem.products) lifeButton(item.name + ' · ' + item.price + ' Kč · +' + item.health + ' zdraví', 'buy', item.id, player.cash < item.price);
   if (mode === 'phone') {
     for (const item of lifeState.messages.slice(-8)) {
       const message = document.createElement('p'); message.textContent = 'Den ' + item.day + ' · ' + item.from + ': ' + item.text; $('choices').append(message);
     }
     for (const contact of ['Viktor', 'Eliška', 'Pavel', 'Správce']) lifeButton('SMS → ' + contact + ' · 5 Kč · max. 1 denně', 'sms', contact, lifeState.sentDay === lifeState.day || player.cash < 5 || (['Pavel', 'Správce'].includes(contact) && !lifeSystem.has('extraContacts', lifeEntitlements)));
+    for(const vehicle of lifeState.vehicles.filter(item=>item.lease)){const model=lifeSystem.vehicleCatalog.find(item=>item.id===vehicle.modelId),amount=Math.min(vehicle.lease.payment,vehicle.lease.remaining);lifeButton('Leasing '+model.name+' · '+formatMoney(amount)+' · splatnost den '+vehicle.lease.due,'payLease',vehicle.id,lifeState.day<vehicle.lease.due||player.cash+lifeState.balance<amount);}
     for (const bill of lifeState.bills) lifeButton(bill.name + ' · ' + bill.amount + ' Kč · splatnost den ' + bill.due + (lifeState.day > bill.due ? ' · PO SPLATNOSTI' : ''), 'bill', bill.id, player.cash < bill.amount);
     if (!lifeState.bills.length) { const info = document.createElement('p'); info.textContent = 'Všechny účty zaplacené.'; $('choices').append(info); }
     if (lifeSystem.has('mobileBank', lifeEntitlements)) bankChoices(true);
