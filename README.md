@@ -1,10 +1,10 @@
 # Life Is Bitch · Betonové sny
 
-Hratelný prototyp pouliční hry v češtině. Stylizované pražské čtvrti, auta, levelování a průřez interiéry. Zdroj hry je ve `web/` a obsahuje lokální Three.js včetně licence.
+Hratelný prototyp pouliční hry v češtině. Výchozí vizuál je noční top-down město ve stylu GTA2: auta, pěší, MHD, levelování a průřez interiéry. Zdroj hry je ve `web/`.
 
 ## Android
 
-Android 8.0+, orientace na šířku, dotykové ovládání, offline obsah a uložený postup. Používá systémový Android WebView; pro 3D je potřeba funkční WebGL. Projekt vychází z webového prototypu, nejde zatím o nativní AA hru.
+Android 8.0+, orientace na šířku, dotykové ovládání, offline obsah a uložený postup. Používá systémový Android WebView. Projekt vychází z webového prototypu, nejde zatím o nativní AA hru.
 
 GitHub Actions → Android APK and AAB → úspěšný běh → artifact `life-is-bitch-android`.
 
@@ -17,8 +17,8 @@ Web: spustit HTTP server ve `web/`, například `python -m http.server 8080`.
 
 ## Ovládání
 
-Šipky na displeji: pohyb a řízení. E: dveře, kontakty a schody. F: auto. Tlačítka sprintu, brzdy a mapy jsou dole. Pozastavení přes horní tlačítko nebo Android Zpět.
+Šipky na displeji: pohyb a řízení. E: dveře, kontakty, MHD a schody. F: auto. Tlačítka sprintu, brzdy a mapy jsou dole. Pozastavení přes horní tlačítko nebo Android Zpět.
 
 ## Stav ověření
 
-Herní logika a Three.js geometrie prošly testy původního prototypu. Android sestavení potvrzuje pouze zelený Actions běh; výkon na skutečném telefonu vyžaduje samostatné ověření.
+Herní logika prošla testy původního prototypu. Android sestavení potvrzuje pouze zelený Actions běh; výkon na skutečném telefonu vyžaduje samostatné ověření.

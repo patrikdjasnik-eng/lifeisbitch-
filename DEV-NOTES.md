@@ -1,5 +1,13 @@
 # Plán dalšího vývoje
 
+## 2026-10-12 · Performance pass / MHD jako pasažér
+
+- Live směr celé hry je noční top-down pohled podle aktuálního screenshotu: průhledný HUD, oranžový text, auta se světly a město z ptačí perspektivy.
+- 3D renderer se už nenačítá automaticky. Soubor zůstává v repu jako experiment, ale produkční web jede 2D režimem, aby se hra nesekala.
+- Snížen počet ambient aut, chodců a kaluží; budovy se ve 2D kreslí jen z okolí kamery místo celého světa.
+- MHD už není teleport. Hráč koupí jízdenku, nastoupí jako pasažér, kamera sleduje autobus/tramvaj a výstup proběhne na cílové zastávce.
+- Validation: `npm test`.
+
 ## Premium a online hraní
 
 - Základní offline hra zdarma.

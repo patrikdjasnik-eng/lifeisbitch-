@@ -72,13 +72,15 @@ for(const name of ['ZÁKLADNÍ ŠKOLA','ÚŘAD PRÁCE','POLICIE ČR','OBCHODNÍ 
 for(const lot of parkingLots){if(buildingBuckets.has(cellKey(lot.row,lot.col)))throw Error('Parking covered by buildings');if(collision(lot.col*400+200,lot.row*400+200,10))throw Error('Parking unreachable');}
 for(const stop of transitStops)if(collision(stop.x,stop.y,10))throw Error('Blocked transit stop');
 const stop=transitStops[0];player.x=stop.x;player.y=stop.y;player.cash=100;
-showTransitMenu(stop);if(!rideTransit(1)||player.cash!==60||player.x!==transitStops[1].x)throw Error('Transit purchase/arrival failed');
+showTransitMenu(stop);if(!rideTransit(1)||player.cash!==60||!transitRide||player.x===transitStops[1].x)throw Error('Transit passenger boarding failed');
 if(rideTransit(1)||player.cash!==60)throw Error('Repeated transit charge');
+for(let i=0;i<260&&transitRide;i++)update(.1);
+if(transitRide||Math.abs(player.x-transitStops[1].x)>1||Math.abs(player.y-transitStops[1].y)>1)throw Error('Transit passenger arrival failed');
 player.x=stop.x;player.y=stop.y;player.cash=0;showTransitMenu(stop);if(rideTransit(1))throw Error('Free transit accepted');closeContracts();
 for(const car of cars.filter(item=>item.transit)){const x=car.x,y=car.y;for(let i=0;i<1000;i++)updateTransitVehicle(car,.1);if(car.x===x&&car.y===y)throw Error('Vehicle stuck');if(carCollision(car.x,car.y,car.angle))throw Error('Transit drives through buildings');}
 if(people.filter(person=>person.role).length<16||cars.filter(car=>car.police).length<20)throw Error('Patrols missing');
 `,context);
-console.log('PASS: civic buildings/doors, parking, accessible stops, transit fare and arrival, stale/insufficient fare, vehicle routes, police patrols');
+console.log('PASS: civic buildings/doors, parking, accessible stops, passenger transit ride, stale/insufficient fare, vehicle routes, police patrols');
 
 vm.runInContext(`
 lifeState=lifeSystem.create();player.cash=2000;player.health=30;closeContracts();interior=null;
