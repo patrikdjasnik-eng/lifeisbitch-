@@ -1,5 +1,13 @@
 # Plán dalšího vývoje
 
+## 2026-10-12 · Zahradní Město / škola / policie
+
+- Přidáno Zahradní Město jako hratelná čtvrť s knihovnou, fake internet café, střední školou, kontaktem a 2 navazujícími lokálními questy.
+- Rozšířený inventář ukládá doklady, studijní věci, certifikáty a herní bezpečnostní vybavení. Player menu má Inventář a Log novinek.
+- Policie má 20otázkový vědomostní test. Po úspěšném dokončení se odemknou herní zbraně/vybavení u NPC policie a zapíšou se do inventáře i logu.
+- Střední škola odemyká lepší práce na úřadu práce. Dá se dokončit přes LVL 3 nebo přes 6 bodů samostudia v knihovně/fake internetu.
+- Validation: `npm test`.
+
 ## 2026-10-12 · Performance pass / MHD jako pasažér
 
 - Live směr celé hry je noční top-down pohled podle aktuálního screenshotu: průhledný HUD, oranžový text, auta se světly a město z ptačí perspektivy.

@@ -40,6 +40,81 @@ let lifeState = lifeSystem.create();
 const lifeEntitlements = [];
 let lifeMenu = null;
 let lifeSaveElapsed = 0;
+const featureLog = [
+  'Novinka: Zahradní Město je nová hratelná čtvrť s knihovnou, fake internetem a střední školou.',
+  'Novinka: Policie odemyká herní zbraně až po dokončení 20otázkového vědomostního testu.',
+  'Novinka: Rozšířený inventář sleduje doklady, studium, certifikáty a herní vybavení.',
+  'Novinka: Střední škola odemyká lepší práce; dostaneš se k ní levelem nebo samostudiem.'
+];
+const inventoryCatalog = {
+  phone: { name: 'Telefon', type: 'utility' },
+  idcard: { name: 'Občanka', type: 'document' },
+  notebook: { name: 'Studijní sešit', type: 'study' },
+  diploma: { name: 'Vysvědčení ze střední školy', type: 'document' },
+  webNotes: { name: 'Poznámky z fake internetu', type: 'study' },
+  libraryCard: { name: 'Průkaz do knihovny', type: 'document' },
+  policeCertificate: { name: 'Policejní certifikát bezpečnosti', type: 'document' },
+  pepper: { name: 'Pepřový sprej', type: 'weapon' },
+  baton: { name: 'Teleskopický obušek', type: 'weapon' },
+  trainingPistol: { name: 'Tréninková pistole', type: 'weapon' }
+};
+const baseInventory = () => [{ id: 'phone', qty: 1 }, { id: 'idcard', qty: 1 }, { id: 'notebook', qty: 1 }];
+let inventory = baseInventory();
+let gameplayLog = featureLog.map((text, index) => ({ day: 1, text, system: true, order: index + 1 }));
+let educationState = { studyPoints: 0, highSchool: false, method: null, betterJobs: false };
+let policeKnowledgeState = { passed: false, active: false, index: 0, score: 0 };
+let unlockedWeapons = [];
+const policeWeapons = [
+  { id: 'pepper', name: 'Pepřový sprej', level: 1 },
+  { id: 'baton', name: 'Teleskopický obušek', level: 2 },
+  { id: 'trainingPistol', name: 'Tréninková pistole', level: 3 }
+];
+const policeKnowledgeQuestions = [
+  ['Co uděláš při kontrole dokladů?', ['Uteču', 'Zůstanu v klidu a komunikuju', 'Schovám se v autě'], 1],
+  ['Kdy voláš tísňovou linku?', ['Při reálném ohrožení', 'Kvůli parkování', 'Když chci slevu'], 0],
+  ['Co znamená červená na semaforu?', ['Zrychlit', 'Zastavit', 'Jet jen na chodník'], 1],
+  ['Jak se chováš u nehody?', ['Zavolám pomoc a neblokujem zásah', 'Natáčím zprostředka silnice', 'Odjedu'], 0],
+  ['Co patří k legální práci?', ['Docházka a smlouva', 'Jen slib v chatu', 'Žádné papíry'], 0],
+  ['Co je respekt ve městě?', ['Strach všech kolem', 'Spolehlivost a reputace', 'Jen hotovost'], 1],
+  ['Kdy použiješ sebeobranný prostředek?', ['Jen v nouzi a přiměřeně', 'Pro zábavu', 'Kvůli hádce o drobné'], 0],
+  ['Co uděláš s nalezenou cizí peněženkou?', ['Vrátím ji nebo předám policii', 'Nechám si ji', 'Prodám doklady'], 0],
+  ['Co zvyšuje policejní pozornost?', ['Rizikové zakázky', 'Studium v knihovně', 'Nákup rohlíku'], 0],
+  ['Jak bezpečně přejdeš ulici?', ['Na přechodu a rozhlédnout se', 'Mezi auty bez koukání', 'Zavřu oči'], 0],
+  ['Co znamená samostudium?', ['Učit se mimo školu', 'Kupovat auta', 'Ignorovat úkoly'], 0],
+  ['Kde získáš klidné znalosti?', ['V knihovně', 'V honičce', 'U bouračky'], 0],
+  ['Co je férová směna?', ['Práce za dohodnutou odměnu', 'Práce bez domluvy', 'Dluh bez konce'], 0],
+  ['Kdy je lepší ustoupit?', ['Když konflikt roste', 'Nikdy', 'Až po pokutě'], 0],
+  ['Co znamená inventář?', ['Seznam tvých věcí', 'Stav počasí', 'Cena benzínu'], 0],
+  ['Proč chodit do školy?', ['Kvůli lepším pracím', 'Aby nešlo ukládat', 'Kvůli větším pokutám'], 0],
+  ['Co je fake internet ve hře?', ['Herní studijní zdroj', 'Reálný návod k útoku', 'Bankovní hack'], 0],
+  ['Co uděláš, když nemáš peníze na jízdenku?', ['Nejedu nebo vydělám', 'Vynutím si odvoz', 'Zablokuju autobus'], 0],
+  ['Jak snížíš riziko na ulici?', ['Legální práce a klid', 'Rychlé zakázky', 'Provokování hlídek'], 0],
+  ['Co odemkne test na policii?', ['Herní bezpečnostní vybavení', 'Nekonečné peníze', 'Teleport'], 0]
+].map(([question, choices, answer], index) => ({ id: 'q' + (index + 1), question, choices, answer }));
+const betterJobs = [
+  { id: 'warehouse', title: 'Koordinátor skladu', level: 3, reward: 3200, xp: 150, rep: 12 },
+  { id: 'it-helpdesk', title: 'Junior IT podpora', level: 4, reward: 5200, xp: 210, rep: 18 },
+  { id: 'automation', title: 'Automatizace objednávek', level: 5, reward: 8200, xp: 290, rep: 25 }
+];
+function inventoryCapacity() { return educationState.highSchool ? 32 : 24; }
+function inventoryCount() { return inventory.reduce((sum, item) => sum + item.qty, 0); }
+function inventoryName(id) { return inventoryCatalog[id]?.name || id; }
+function addInventoryItem(id, qty = 1) {
+  if (!inventoryCatalog[id] || !Number.isSafeInteger(qty) || qty <= 0 || inventoryCount() + qty > inventoryCapacity()) return false;
+  const item = inventory.find(entry => entry.id === id);
+  if (item) item.qty += qty; else inventory.push({ id, qty });
+  recordLog('Inventář: přidáno ' + inventoryName(id) + (qty > 1 ? ' ×' + qty : '') + '.');
+  return true;
+}
+function hasInventoryItem(id) { return inventory.some(item => item.id === id && item.qty > 0); }
+function recordLog(text) {
+  gameplayLog.push({ day: lifeState.day || 1, text, system: false, order: gameplayLog.length + 1 });
+  gameplayLog = gameplayLog.slice(-80);
+}
+function educationStatusText() {
+  return 'Studium ' + educationState.studyPoints + '/6 · ' + (educationState.highSchool ? 'střední škola hotová' : 'škola zamčená do LVL 3 nebo 6 bodů samostudia');
+}
+function canFinishHighSchool() { return !educationState.highSchool && (playerLevel() >= 3 || educationState.studyPoints >= 6); }
 addEventListener('pagehide', () => saveProgress());
 const pragueWeather = {
   condition: 'rain',
@@ -115,13 +190,16 @@ let seed=47;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/21474836
 const cityBlocks=[];
 const civicPlaces = new Map([
   ['1:0', 'UBYTOVNA'], ['3:3', 'BANKA'], ['1:3', 'ZÁKLADNÍ ŠKOLA'], ['3:1', 'ÚŘAD PRÁCE'], ['2:2', 'POLICIE ČR'],
-  ['2:4', 'HASIČI'], ['4:2', 'NEMOCNICE'], ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY'], ['-1:-3','BURZA PRAHA'], ['-4:-10','BAVARIA AUTOSALON'], ['-3:-12','VIER AUTOSALON'], ['-6:-9','STERN AUTOSALON'], ['-6:-6','NORD AUTOSALON'], ['-3:-13','BESEDA OŘECHOVKA'], ['-8:-14','HANSPAULSKÝ KLUB']
+  ['2:4', 'HASIČI'], ['4:2', 'NEMOCNICE'], ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY'],
+  ['28:22', 'KNIHOVNA ZAHRADNÍ MĚSTO'], ['28:23', 'STŘEDNÍ ŠKOLA'], ['27:24', 'FAKE INTERNET CAFÉ'],
+  ['-1:-3','BURZA PRAHA'], ['-4:-10','BAVARIA AUTOSALON'], ['-3:-12','VIER AUTOSALON'], ['-6:-9','STERN AUTOSALON'], ['-6:-6','NORD AUTOSALON'], ['-3:-13','BESEDA OŘECHOVKA'], ['-8:-14','HANSPAULSKÝ KLUB']
 ]);
 const parkingLots = [{col:4,row:1},{col:3,row:2},{col:11,row:18}];
 function districtAt(x,y){
   if(x<0||y<0){let best=pragueDistrictAnchors[0];for(const d of pragueDistrictAnchors)if(Math.hypot(x-d.x,y-d.y)<Math.hypot(x-best.x,y-best.y))best=d;return best;}
   if(y>=14400)return {name:'HOLEŠOVICE · DOKY',color:'#dba977',style:'industrial'};
   if(x>=12800)return {name:'NOVÉ MĚSTO',color:'#72d6f5',style:'modern'};
+  if(x>=7600&&y>=10400&&y<14400)return {name:'ZAHRADNÍ MĚSTO',color:'#8fd38a',style:'garden'};
   if(y>=6400&&x>=3200)return {name:'VINOHRADY',color:'#9fcf92',style:'garden'};
   if(y>=6400)return {name:'KARLÍN',color:'#e8b883',style:'old'};
   return {name:'ŽIŽKOV',color:'#d392ef',style:'residential'};
@@ -402,6 +480,9 @@ const importantNpcConfigs = [
   { name: 'HASIČI', label: 'Hasiči', short: 'HZS', color: '#ff5c3f' },
   { name: 'NEMOCNICE', label: 'Sanitka', short: 'EMS', color: '#f1f7f2' },
   { name: 'UBYTOVNA', label: 'Správce ubytovny', short: 'POSTEL', color: '#ffd166' },
+  { name: 'KNIHOVNA ZAHRADNÍ MĚSTO', label: 'Knihovna · samostudium', short: 'KNIH', color: '#91d98f' },
+  { name: 'STŘEDNÍ ŠKOLA', label: 'Střední škola', short: 'ŠKOLA', color: '#f0d06c' },
+  { name: 'FAKE INTERNET CAFÉ', label: 'Fake internet · samostudium', short: 'NET', color: '#68d7ff' },
   { name: 'OBCHODNÍ CENTRUM', label: 'Obchody', short: 'SHOP', color: '#72e2d1' },
   { name: 'CENTRUM VINOHRADY', label: 'Obchody', short: 'SHOP', color: '#72e2d1' }
 ];
@@ -478,7 +559,7 @@ function interact(){if(!started||paused||dialogOpen)return;if(transitRide){notif
 function enterCar(){if(!started||paused||dialogOpen)return;if(transitRide){notify('Jedeš jako pasažér. Vystoupíš na cílové zastávce.');return;}if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
 $('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify('První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
-addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(mapExpanded){if(k==='m'||k==='escape'){e.preventDefault();window.lifeCityMap?.toggle(false);}return;}if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')window.lifeCityMap?.toggle();if(k==='j')openContracts();if(k==='k')manualSave();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen&&!mapExpanded)togglePause()});
+addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(mapExpanded){if(k==='m'||k==='escape'){e.preventDefault();window.lifeCityMap?.toggle(false);}return;}if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='i')openInventory();if(k==='e')interact();if(k==='f')enterCar();if(k==='m')window.lifeCityMap?.toggle();if(k==='j')openContracts();if(k==='k')manualSave();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen&&!mapExpanded)togglePause()});
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key)}$('touchE').onclick=interact;$('touchF').onclick=enterCar;
 $('sound').onclick=()=>{try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();sound=!sound;$('sound').textContent='Zvuk · '+(sound?'zapnuto':'vypnuto');if(sound){const buffer=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.035;const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();filter.type='lowpass';filter.frequency.value=850;gain.gain.value=weatherAudioLevel();source.buffer=buffer;source.loop=true;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();audio.rainGain=gain}else audio.suspend()}catch{notify('Zvuk není v tomto prohlížeči dostupný.')}};
 function resize(){w=innerWidth;h=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
@@ -908,7 +989,7 @@ function drawMap(){
   for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
   for(const c of emergencyVehicles){ctx.fillStyle=c.service==='fire'?'#ff5c3f':c.service==='ambulance'?'#f1f7f2':'#5c99ef';ctx.fillRect(c.x*s-1.5,c.y*s-1.5,4,4)}
   for(const incident of incidents){ctx.fillStyle='#ffcc66';ctx.beginPath();ctx.arc(incident.x*s,incident.y*s,4.5,0,7);ctx.fill();if(mapExpanded){ctx.font='bold 8px Arial';ctx.textAlign='center';ctx.fillText('NEHODA',incident.x*s,incident.y*s-7)}}
-  if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
+  if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:9000,y:11600,name:'ZAHRADNÍ MĚSTO'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO',x,y-17);
 }
 let mapExpanded=false;
@@ -938,13 +1019,14 @@ const districtContacts=[
   {id:'zizkov',district:'ŽIŽKOV',speaker:'LENKA · SOUSEDKA',x:667,y:455},
   {id:'karlin',district:'KARLÍN',speaker:'ADAM · KURÝR',x:867,y:7655},
   {id:'vinohrady',district:'VINOHRADY',speaker:'TEREZA · FLORISTKA',x:8067,y:8455},
+  {id:'zahradni',district:'ZAHRADNÍ MĚSTO',speaker:'MÍRA · KNIHOVNÍK',x:8867,y:11455},
   {id:'centrum',district:'NOVÉ MĚSTO',speaker:'MARTIN · ANALYTIK',x:14467,y:4855},
   {id:'docks',district:'HOLEŠOVICE · DOKY',speaker:'JIRKA · DISPEČER',x:5267,y:15655},
   ...pragueDistrictAnchors.map((d,i)=>({id:'p6-'+i,district:d.name,speaker:['ALENA · SPRÁVKYNĚ VIL','DAVID · SBĚRATEL','PETR · RESTAURÁTOR','KLÁRA · STUDENTKA','SOFIE · ZAHRADNICE','ONDŘEJ · PRŮVODCE'][i],x:Math.floor(d.x/block)*block+67,y:Math.floor(d.y/block)*block+255}))
 ];
 const districtJobs=districtContacts.flatMap((contact,i)=>{
   const next=districtContacts[(i+1)%districtContacts.length];
-  const topics=[['Sousedská výpomoc','Doruč ztracené klíče správci domu.'],['Ranní rozvoz','Doruč podklady do kavárny.'],['Květiny pro sousedy','Odnes objednávku na druhý konec čtvrti.'],['První investiční analýza','Doruč analytické podklady brokerovi.'],['Dokumenty z doků','Předej přepravní listy dispečerovi.'],['Zahrady Ořechovky','Doruč plán obnovy zahrady majiteli vily.'],['Veterán na Hanspaulce','Odnes servisní dokumentaci sběrateli.'],['Oprava fasády','Předej návrh restaurátorovi.'],['Studentská brigáda','Doruč vybavení pro univerzitní projekt.'],['Zelená Bubeneč','Předej sazenice správci parku.'],['Hradčanská procházka','Dones průvodci podklady pro novou trasu.']];
+  const topics=[['Sousedská výpomoc','Doruč ztracené klíče správci domu.'],['Ranní rozvoz','Doruč podklady do kavárny.'],['Květiny pro sousedy','Odnes objednávku na druhý konec čtvrti.'],['Tichá knihovna','Doruč učební materiály do Zahradního Města.'],['První investiční analýza','Doruč analytické podklady brokerovi.'],['Dokumenty z doků','Předej přepravní listy dispečerovi.'],['Zahrady Ořechovky','Doruč plán obnovy zahrady majiteli vily.'],['Veterán na Hanspaulce','Odnes servisní dokumentaci sběrateli.'],['Oprava fasády','Předej návrh restaurátorovi.'],['Studentská brigáda','Doruč vybavení pro univerzitní projekt.'],['Zelená Bubeneč','Předej sazenice správci parku.'],['Hradčanská procházka','Dones průvodci podklady pro novou trasu.']];
   return [
     {id:contact.id+'-1',contactId:contact.id,district:contact.district,title:topics[i][0],text:topics[i][1],receiver:'MÍSTNÍ KONTAKT',target:{x:contact.x+400,y:contact.y,label:'Předání · '+contact.district},reward:900+i*350,xp:65+i*5},
     {id:contact.id+'-2',contactId:contact.id,district:contact.district,title:'Kontakty za hranicí čtvrti',text:'Doruč doporučení kontaktu ve čtvrti '+next.district+'.',receiver:next.speaker,target:{x:next.x,y:next.y,label:next.speaker},reward:2100+i*500,xp:110+i*5,requires:contact.id+'-1'}
@@ -986,6 +1068,83 @@ function awardXp(amount){
   if(playerLevel()>oldLevel){const unlocked=substances.filter(item=>item.level>oldLevel&&item.level<=playerLevel());notify('LEVEL '+playerLevel()+' · '+(unlocked.length?'Odemčeno: '+unlocked.map(item=>item.name).join(', '):'Nová úroveň zkušeností'));}
   saveProgress();
 }
+function unlockPoliceWeapons(){
+  let changed=false;
+  for(const weapon of policeWeapons){
+    if(!unlockedWeapons.includes(weapon.id)){unlockedWeapons.push(weapon.id);changed=true;}
+    if(!hasInventoryItem(weapon.id))addInventoryItem(weapon.id);
+  }
+  if(!hasInventoryItem('policeCertificate'))addInventoryItem('policeCertificate');
+  if(changed)recordLog('Policie: dokončen 20otázkový test a odemčen bezpečnostní arzenál.');
+  return changed;
+}
+function renderPoliceKnowledgeQuestion(){
+  const question=policeKnowledgeQuestions[policeKnowledgeState.index];
+  $('speaker').textContent='POLICIE ČR · TEST '+(policeKnowledgeState.index+1)+'/20';
+  $('dialogTitle').textContent='Vědomostní test bezpečnosti';
+  $('dialogText').textContent=question.question+' · skóre '+policeKnowledgeState.score+'/'+policeKnowledgeState.index;
+  $('choices').replaceChildren();
+  question.choices.forEach((choice,index)=>{const button=document.createElement('button');button.textContent=choice;button.onclick=()=>answerPoliceKnowledgeTest(index);$('choices').append(button);});
+}
+function startPoliceKnowledgeTest(){
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='police'||distance(player,lifeServicePoint())>45||policeKnowledgeState.passed)return false;
+  policeKnowledgeState={passed:false,active:true,index:0,score:0};recordLog('Policie: zahájen 20otázkový vědomostní test.');renderPoliceKnowledgeQuestion();return true;
+}
+function answerPoliceKnowledgeTest(index){
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='police'||!policeKnowledgeState.active)return false;
+  const question=policeKnowledgeQuestions[policeKnowledgeState.index];
+  if(!question||!Number.isInteger(index))return false;
+  if(index===question.answer)policeKnowledgeState.score++;
+  policeKnowledgeState.index++;
+  if(policeKnowledgeState.index<policeKnowledgeQuestions.length){renderPoliceKnowledgeQuestion();return true;}
+  const passed=policeKnowledgeState.score>=16;
+  policeKnowledgeState={passed,active:false,index:policeKnowledgeQuestions.length,score:policeKnowledgeState.score};
+  if(passed){unlockPoliceWeapons();awardXp(120);notify('Test hotový · zbraně odemčeny u policie');}
+  else{recordLog('Policie: test nedokončen úspěšně, skóre '+policeKnowledgeState.score+'/20.');notify('Test hotový · skóre '+policeKnowledgeState.score+'/20 · zkus to znovu');}
+  saveProgress();updateHud();const menu=lifeMenu;closeContracts();openLifeMenu(menu);return passed;
+}
+function finishHighSchool(method='škola'){
+  if(educationState.highSchool)return false;
+  if(method==='samostudium'?educationState.studyPoints<6:!canFinishHighSchool())return false;
+  educationState.highSchool=true;educationState.method=method;educationState.betterJobs=true;
+  addInventoryItem('diploma');recordLog('Vzdělání: střední škola dokončena cestou '+method+'. Lepší práce jsou dostupné na úřadu práce.');
+  awardXp(180);player.rep+=15;saveProgress();updateHud();notify('Střední škola hotová · lepší práce odemčeny');return true;
+}
+function studyAt(kind){
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!==kind||distance(player,lifeServicePoint())>45||educationState.highSchool)return false;
+  const gain=kind==='library'?2:1;
+  educationState.studyPoints=Math.min(6,educationState.studyPoints+gain);
+  if(kind==='library'&&!hasInventoryItem('libraryCard'))addInventoryItem('libraryCard');
+  if(kind==='internet'&&!hasInventoryItem('webNotes'))addInventoryItem('webNotes');
+  recordLog((kind==='library'?'Knihovna':'Fake internet')+': samostudium +'+gain+' bodů ('+educationState.studyPoints+'/6).');
+  awardXp(kind==='library'?55:35);
+  if(educationState.studyPoints>=6)finishHighSchool('samostudium');
+  saveProgress();updateHud();const menu=lifeMenu;closeContracts();openLifeMenu(menu);return true;
+}
+function takeBetterJob(id){
+  const job=betterJobs.find(item=>item.id===id);
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='office'||distance(player,lifeServicePoint())>45||!job||!educationState.betterJobs||playerLevel()<job.level)return false;
+  player.cash=Math.min(1000000,player.cash+job.reward);player.rep+=job.rep;recordLog('Práce: '+job.title+' dokončena za '+formatMoney(job.reward)+'.');
+  awardXp(job.xp);saveProgress();updateHud();notify(job.title+' · +'+formatMoney(job.reward)+' · +'+job.xp+' XP');const menu=lifeMenu;closeContracts();openLifeMenu(menu);return true;
+}
+function openInventory(){
+  if(!started||paused||dialogOpen)return false;
+  lifeMenu=null;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('choices').replaceChildren();
+  $('speaker').textContent='INVENTÁŘ · '+inventoryCount()+'/'+inventoryCapacity();$('dialogTitle').textContent='Batoh, doklady a vybavení';
+  $('dialogText').textContent=educationStatusText()+' · zbraně '+(unlockedWeapons.length?unlockedWeapons.map(inventoryName).join(', '):'zamčené u policie')+'.';
+  for(const item of inventory){const meta=inventoryCatalog[item.id]||{};choiceInfo((meta.type||'item').toUpperCase()+' · '+inventoryName(item.id)+(item.qty>1?' ×'+item.qty:''));}
+  if(!inventory.length)choiceInfo('Inventář je prázdný.');
+  const log=document.createElement('button');log.textContent='Otevřít log novinek';log.onclick=()=>{closeContracts();openLogList();};$('choices').append(log);
+  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+}
+function openLogList(){
+  if(!started||paused||dialogOpen)return false;
+  lifeMenu=null;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('choices').replaceChildren();
+  $('speaker').textContent='LOG LIST';$('dialogTitle').textContent='Novinky a události';
+  $('dialogText').textContent='Seznam posledních systémových novinek a herních odemčení.';
+  for(const item of gameplayLog.slice(-18).reverse())choiceInfo('Den '+item.day+' · '+item.text);
+  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+}
 function targetAvailable(){return Boolean(activeDistrictJob)||Boolean(activeContract)||!complete}
 function updateProgressionHud(){
   const level=playerLevel(),minimum=levelThresholds[level-1],maximum=levelThresholds[level];
@@ -1024,13 +1183,23 @@ function completeContract(){
   notify('Doručeno: '+item.name+' · +'+item.reward.toLocaleString('cs-CZ')+' Kč · +'+item.xp+' XP');awardXp(item.xp);saveProgress();updateHud();return true;
 }
 function saveProgress(){
-  try{syncOwnedVehiclePositions();localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount,activeDistrictJob,completedDistrictJobs,playerPosition:interior?interior.outside:{x:player.x,y:player.y,angle:player.angle}}));}catch{}
+  try{syncOwnedVehiclePositions();localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount,activeDistrictJob,completedDistrictJobs,inventory,educationState,policeKnowledge:{passed:policeKnowledgeState.passed,score:policeKnowledgeState.score},unlockedWeapons,gameplayLog,playerPosition:interior?interior.outside:{x:player.x,y:player.y,angle:player.angle}}));}catch{}
 }
 function restoreProgress(){
   try{
     const saved=JSON.parse(localStorage.getItem('street-life-progress-v1')||'null');if(!saved||saved.version!==1)return;
     if(!['xp','cash','rep','missionIndex','contractCount'].every(key=>Number.isSafeInteger(saved[key])&&saved[key]>=0)||saved.missionIndex>missions.length-1||typeof saved.legal!=='boolean'||typeof saved.complete!=='boolean')return;
     completedDistrictJobs=Array.isArray(saved.completedDistrictJobs)?[...new Set(saved.completedDistrictJobs.filter(id=>districtJobs.some(job=>job.id===id)))]:[];
+    inventory=Array.isArray(saved.inventory)?saved.inventory.filter(item=>item&&inventoryCatalog[item.id]&&Number.isSafeInteger(item.qty)&&item.qty>0&&item.qty<=99).map(item=>({id:item.id,qty:item.qty})):baseInventory();
+    if(!inventory.length)inventory=baseInventory();
+    const education=saved.educationState&&typeof saved.educationState==='object'?saved.educationState:{};
+    educationState={studyPoints:Number.isSafeInteger(education.studyPoints)?Math.max(0,Math.min(6,education.studyPoints)):0,highSchool:Boolean(education.highSchool),method:typeof education.method==='string'?education.method:null,betterJobs:Boolean(education.betterJobs||education.highSchool)};
+    const police=saved.policeKnowledge&&typeof saved.policeKnowledge==='object'?saved.policeKnowledge:{};
+    policeKnowledgeState={passed:Boolean(police.passed),active:false,index:0,score:Number.isSafeInteger(police.score)?Math.max(0,Math.min(20,police.score)):0};
+    unlockedWeapons=Array.isArray(saved.unlockedWeapons)?[...new Set(saved.unlockedWeapons.filter(id=>policeWeapons.some(weapon=>weapon.id===id)))]:[];
+    if(policeKnowledgeState.passed)for(const weapon of policeWeapons)if(!unlockedWeapons.includes(weapon.id))unlockedWeapons.push(weapon.id);
+    const savedLog=Array.isArray(saved.gameplayLog)?saved.gameplayLog.filter(item=>item&&typeof item.text==='string'&&item.text.length<=220).map((item,index)=>({day:Number.isSafeInteger(item.day)?item.day:1,text:item.text,system:Boolean(item.system),order:index+1})).filter(item=>!item.system):[];
+    gameplayLog=[...featureLog.map((text,index)=>({day:1,text,system:true,order:index+1})),...savedLog].slice(-80);
     activeDistrictJob=districtJobs.some(job=>job.id===saved.activeDistrictJob&&!completedDistrictJobs.includes(job.id)&&(!job.requires||completedDistrictJobs.includes(job.requires)))?saved.activeDistrictJob:null;
     lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;storyPath=['street','clean'].includes(saved.storyPath)?saved.storyPath:null;contractCount=saved.contractCount;
     if(Number.isFinite(saved.health)&&saved.health>=0&&saved.health<=100)player.health=saved.health;
@@ -1069,6 +1238,10 @@ function lifeServiceKind() {
   if (name?.endsWith('AUTOSALON')) return 'dealer';
   if (name === 'UBYTOVNA') return 'hostel';
   if (['POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(name)) return 'shop';
+  if (name === 'POLICIE ČR') return 'police';
+  if (name === 'STŘEDNÍ ŠKOLA' || name === 'GYMNÁZIUM VINOHRADY') return 'school';
+  if (name === 'KNIHOVNA ZAHRADNÍ MĚSTO') return 'library';
+  if (name === 'FAKE INTERNET CAFÉ') return 'internet';
   if (name === 'ÚŘAD PRÁCE') return 'office';
   if (isApartmentBuilding()) return 'property';
   return null;
@@ -1201,12 +1374,40 @@ function dealerChoices(){
   }
   if(!lifeState.vehicles.length)choiceInfo('Garáž je prázdná. Po podpisu smlouvy se auto objeví před salonem.');
 }
+function policeChoices(){
+  choiceInfo('Zbraně jsou herní bezpečnostní vybavení. Odemknutí proběhne až po dokončení 20 otázek; minimum pro průchod je 16/20.');
+  choiceInfo('Stav testu: '+(policeKnowledgeState.passed?'splněno · arzenál odemčen':'čeká na dokončení')+'.');
+  if(!policeKnowledgeState.passed){
+    const start=document.createElement('button');start.textContent='Spustit 20otázkový vědomostní test';start.onclick=startPoliceKnowledgeTest;$('choices').append(start);
+  }else{
+    for(const weapon of policeWeapons)choiceInfo('ODEMČENO · '+weapon.name+' · v inventáři '+(hasInventoryItem(weapon.id)?'ano':'ne'));
+  }
+}
+function schoolChoices(){
+  choiceInfo(educationStatusText()+'. Formální zápis vyžaduje LVL 3; samostudium stačí na 6 bodů.');
+  if(educationState.highSchool){choiceInfo('Dokončeno přes: '+educationState.method+'. Lepší práce hledej na úřadu práce.');return;}
+  const enroll=document.createElement('button');enroll.textContent='Dokončit střední školu · LVL 3 nebo 6 bodů samostudia';enroll.disabled=!canFinishHighSchool();enroll.onclick=()=>{if(finishHighSchool(playerLevel()>=3?'škola':'samostudium')){const menu=lifeMenu;closeContracts();openLifeMenu(menu);}};$('choices').append(enroll);
+}
+function studyChoices(kind){
+  choiceInfo(educationStatusText()+'. '+(kind==='library'?'Knihovna dává +2 body samostudia.':'Fake internet dává +1 bod samostudia a rychlé poznámky.'));
+  if(educationState.highSchool){choiceInfo('Už máš hotovo. Teď běž na úřad práce pro lepší směny.');return;}
+  const button=document.createElement('button');button.textContent=kind==='library'?'Studovat v knihovně · +2 body · +55 XP':'Studovat na fake internetu · +1 bod · +35 XP';button.onclick=()=>studyAt(kind);$('choices').append(button);
+}
+function betterJobButton(job){
+  const button=document.createElement('button');
+  button.textContent=job.title+' · LVL '+job.level+' · '+formatMoney(job.reward)+' · '+job.xp+' XP';
+  button.disabled=!educationState.betterJobs||playerLevel()<job.level;
+  button.onclick=()=>takeBetterJob(job.id);
+  $('choices').append(button);
+}
 function officeChoices() {
   const worth = lifeSystem.netWorth(lifeState, player), funds = player.cash + lifeState.balance;
   choiceInfo('Majetek: ' + formatMoney(worth) + ' · hotovost + účet: ' + formatMoney(funds) + '. OSVČ se odemyká od 8 000 Kč net worth, firma od 60 000 Kč.');
   lifeButton(lifeState.business.osvc ? 'OSVČ už máš založené' : 'Založit OSVČ · 1 000 Kč', 'business', 'osvc', lifeState.business.osvc || worth < 8000 || funds < 1000);
   lifeButton(lifeState.business.company ? 'Firma už je zapsaná' : 'Založit s.r.o. · 12 000 Kč', 'business', 'company', !lifeState.business.osvc || lifeState.business.company || worth < 60000 || funds < 12000);
   lifeButton('Podat daňové přiznání · ' + (lifeState.business.company ? '1 200 Kč' : '400 Kč'), 'business', 'tax', (!lifeState.business.osvc && !lifeState.business.company) || lifeState.business.taxFiledDay === lifeState.day || funds < (lifeState.business.company ? 1200 : 400));
+  choiceInfo('Lepší práce · vyžaduje dokončenou střední školu nebo samostudium.');
+  for(const job of betterJobs)betterJobButton(job);
 }
 function propertyChoices() {
   const offer = propertyOffer(), owned = lifeState.properties.find(item => item.id === offer.id), funds = player.cash + lifeState.balance, down = Math.ceil(offer.price * .25);
@@ -1229,8 +1430,8 @@ function openLifeMenu(mode) {
   $('dialog').classList.remove('hidden'); $('choices').replaceChildren();
   const kind = lifeServiceKind(), name = mode === 'phone' ? 'TELEFON' : (interior.building.name || 'SPRÁVCE DOMU');
   $('speaker').textContent = name + ' · DEN ' + lifeState.day;
-  $('dialogTitle').textContent = mode === 'phone' ? 'Zprávy a účty' : kind === 'hostel' ? 'Postel na jednu noc' : kind === 'bank' ? 'Bankovní přepážka a broker' : kind === 'office' ? 'Živnostenské okénko' : kind === 'property' ? 'Bydlení a nemovitosti' : kind==='exchange'?'Praha Exchange · investiční terminál':kind==='dealer'?'Autorizovaný prodejce · klíče do ruky':'Co potřebuješ?';
-  $('dialogText').textContent = 'Hotovost ' + player.cash + ' Kč · účet ' + lifeState.balance + ' Kč. Jeden den = 5 minut aktivní hry. ' + (kind === 'hostel' ? 'Nocleh platíš předem, spánek doplní 40 zdraví a posune den.' : '');
+  $('dialogTitle').textContent = mode === 'phone' ? 'Zprávy a účty' : kind === 'hostel' ? 'Postel na jednu noc' : kind === 'bank' ? 'Bankovní přepážka a broker' : kind === 'office' ? 'Živnostenské okénko' : kind === 'property' ? 'Bydlení a nemovitosti' : kind==='exchange'?'Praha Exchange · investiční terminál':kind==='dealer'?'Autorizovaný prodejce · klíče do ruky':kind==='police'?'Policejní přepážka · bezpečnostní test':kind==='school'?'Střední škola a maturitní cesta':kind==='library'?'Knihovna · samostudium':kind==='internet'?'Fake internet café · samostudium':'Co potřebuješ?';
+  $('dialogText').textContent = 'Hotovost ' + player.cash + ' Kč · účet ' + lifeState.balance + ' Kč. Jeden den = 5 minut aktivní hry. ' + (kind === 'hostel' ? 'Nocleh platíš předem, spánek doplní 40 zdraví a posune den.' : kind === 'school' || kind === 'library' || kind === 'internet' ? educationStatusText() : '');
   if (mode === 'service' && kind === 'hostel') {
     lifeButton('Pronajmout postel · 150 Kč', 'rent', 'bed', Boolean(lifeState.rental) || player.cash < 150);
     lifeButton('Soukromý pokoj · 450 Kč · balíček Domov', 'rent', 'room', !lifeSystem.has('room', lifeEntitlements) || Boolean(lifeState.rental) || player.cash < 450);
@@ -1238,6 +1439,10 @@ function openLifeMenu(mode) {
   } else if (mode === 'service' && kind === 'bank') bankChoices();
   else if (mode === 'service' && kind === 'exchange') exchangeChoices();
   else if (mode === 'service' && kind === 'dealer') dealerChoices();
+  else if (mode==='service'&&kind === 'police') policeChoices();
+  else if (mode==='service'&&kind === 'school') schoolChoices();
+  else if (mode==='service'&&kind === 'library') studyChoices('library');
+  else if (mode==='service'&&kind === 'internet') studyChoices('internet');
   else if (mode==='service'&&kind === 'office') officeChoices();
   else if (mode==='service'&&kind === 'property') propertyChoices();
   else if (mode !== 'phone') for (const item of lifeSystem.products) lifeButton(item.name + ' · ' + item.price + ' Kč · +' + item.health + ' zdraví', 'buy', item.id, player.cash < item.price);
@@ -1261,6 +1466,8 @@ $('playerMenuToggle').onclick = () => {
   $('playerMenuToggle').setAttribute('aria-expanded', String(!hidden));
 };
 $('phone').onclick = () => openLifeMenu('phone');
+$('inventoryButton').onclick = openInventory;
+$('logButton').onclick = openLogList;
 $('saveGame').onclick = manualSave;
 const originalInteriorHud = updateInteriorHud;
 updateInteriorHud = function() {

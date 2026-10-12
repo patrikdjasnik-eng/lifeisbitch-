@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm');
 const storage=new Map(),els=new Map(),canvas={getContext(){return {setTransform(){}}},addEventListener(){}};
 function el(){return {firstChild:{textContent:''},style:{setProperty(){}},setAttribute(){},classList:{add(){},remove(){},toggle(){}},children:[],replaceChildren(){this.children=[]},append(...items){this.children.push(...items)}}}
 const html=fs.readFileSync('web/index.html','utf8'),css=fs.readFileSync('web/style.css','utf8');
-if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons not grouped/styled');
+if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||!html.includes('id="inventoryButton"')||!html.includes('id="logButton"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons not grouped/styled');
 if(!css.includes('.playerPanel')||!css.includes('#menu #accountButton'))throw Error('Player/account button styles missing');
 const context={console,innerWidth:1440,innerHeight:900,devicePixelRatio:1,localStorage:{getItem(k){return storage.get(k)??null},setItem(k,v){storage.set(k,v)}},document:{querySelector(){return canvas},getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelectorAll(){return []},createElement(){return el()}},addEventListener(){},requestAnimationFrame(){}};
 context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
@@ -66,7 +66,7 @@ console.log('PASS: butcher entrance, NPC interaction, prices, cash/health, healt
 
 vm.runInContext(`
 interior=null;player.car=null;dialogOpen=false;activeShop=null;
-for(const name of ['ZÁKLADNÍ ŠKOLA','ÚŘAD PRÁCE','POLICIE ČR','OBCHODNÍ CENTRUM','GYMNÁZIUM VINOHRADY','CENTRUM VINOHRADY']){
+for(const name of ['ZÁKLADNÍ ŠKOLA','ÚŘAD PRÁCE','POLICIE ČR','OBCHODNÍ CENTRUM','GYMNÁZIUM VINOHRADY','CENTRUM VINOHRADY','STŘEDNÍ ŠKOLA','KNIHOVNA ZAHRADNÍ MĚSTO','FAKE INTERNET CAFÉ']){
  const b=buildings.find(item=>item.name===name);if(!b)throw Error('Missing civic place: '+name);const door=doorFor(b);if(collision(door.x,door.y,10))throw Error('Blocked civic door');
 }
 for(const lot of parkingLots){if(buildingBuckets.has(cellKey(lot.row,lot.col)))throw Error('Parking covered by buildings');if(collision(lot.col*400+200,lot.row*400+200,10))throw Error('Parking unreachable');}
@@ -81,6 +81,28 @@ for(const car of cars.filter(item=>item.transit)){const x=car.x,y=car.y;for(let 
 if(people.filter(person=>person.role).length<16||cars.filter(car=>car.police).length<20)throw Error('Patrols missing');
 `,context);
 console.log('PASS: civic buildings/doors, parking, accessible stops, passenger transit ride, stale/insufficient fare, vehicle routes, police patrols');
+
+vm.runInContext(`
+closeContracts();interior=null;started=true;paused=false;player.car=null;player.cash=5000;player.xp=0;player.rep=0;
+const policeStation=buildings.find(b=>b.name==='POLICIE ČR'),library=buildings.find(b=>b.name==='KNIHOVNA ZAHRADNÍ MĚSTO'),school=buildings.find(b=>b.name==='STŘEDNÍ ŠKOLA'),internet=buildings.find(b=>b.name==='FAKE INTERNET CAFÉ'),officeForJobs=buildings.find(b=>b.name==='ÚŘAD PRÁCE');
+if(!policeStation||!library||!school||!internet||!officeForJobs)throw Error('Education/police buildings missing');
+enterBuilding(policeStation);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='police')throw Error('Police service menu');
+if(!startPoliceKnowledgeTest()||policeKnowledgeQuestions.length!==20)throw Error('Police knowledge test did not start');
+for(let i=0;i<policeKnowledgeQuestions.length;i++)if(!answerPoliceKnowledgeTest(policeKnowledgeQuestions[i].answer))throw Error('Police test answer failed '+i);
+if(!policeKnowledgeState.passed||unlockedWeapons.length!==policeWeapons.length||!policeWeapons.every(weapon=>hasInventoryItem(weapon.id))||!hasInventoryItem('policeCertificate'))throw Error('Police weapons not unlocked');
+closeContracts();interior=null;enterBuilding(library);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='library')throw Error('Library service menu');
+for(let i=0;i<3;i++)if(!studyAt('library'))throw Error('Library self-study failed');
+if(!educationState.highSchool||!educationState.betterJobs||!hasInventoryItem('diploma')||!hasInventoryItem('libraryCard'))throw Error('Self-study high school path failed');
+closeContracts();interior=null;enterBuilding(internet);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='internet')throw Error('Fake internet service menu');
+if(studyAt('internet'))throw Error('Study accepted after school completion');
+closeContracts();interior=null;enterBuilding(school);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='school')throw Error('High school service menu');
+closeContracts();interior=null;player.xp=levelThresholds[5];enterBuilding(officeForJobs);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||!takeBetterJob('automation'))throw Error('Better job unavailable after education');
+if(player.cash<=5000||!gameplayLog.some(item=>item.text.includes('Automatizace objednávek')))throw Error('Better job payout/log missing');
+closeContracts();interior=null;if(!openInventory()||!dialogOpen)throw Error('Inventory dialog missing');closeContracts();if(!openLogList()||!gameplayLog.some(item=>item.text.includes('Zahradní Město')))throw Error('Feature log missing');
+saveProgress();educationState={studyPoints:0,highSchool:false,method:null,betterJobs:false};policeKnowledgeState={passed:false,active:false,index:0,score:0};unlockedWeapons=[];inventory=[];restoreProgress();
+if(!educationState.highSchool||!policeKnowledgeState.passed||!hasInventoryItem('trainingPistol'))throw Error('Education/police inventory save failed');
+`,context);
+console.log('PASS: police 20-question weapon unlock, expanded inventory/log, high school, self-study and better jobs');
 
 vm.runInContext(`
 lifeState=lifeSystem.create();player.cash=2000;player.health=30;closeContracts();interior=null;
@@ -127,7 +149,9 @@ closeContracts();interior=null;activeContract=null;activeDistrictJob=null;comple
 if(cityBlocks.length!==4096||new Set(cityBlocks.map(area=>cellKey(Math.floor(area.y/block),Math.floor(area.x/block)))).size!==4096)throw Error('Expanded city spatial index');
 for(const anchor of pragueDistrictAnchors){if(districtAt(anchor.x,anchor.y).name!==anchor.name)throw Error('Wrong projected district');if(!districtContacts.some(contact=>contact.district===anchor.name))throw Error('Missing district NPC');}
 if(Math.hypot(pragueDistrictAnchors[0].x,pragueDistrictAnchors[0].y)<4500||Math.hypot(pragueDistrictAnchors[0].x,pragueDistrictAnchors[0].y)>6000)throw Error('Villa distance scale');
-if(!buildings.some(b=>b.type==='villa'&&b.height<10&&b.w<110)||districtJobs.length!==22||districtContacts.length!==11)throw Error('Villas/local quest content');
+if(districtAt(9000,11600).name!=='ZAHRADNÍ MĚSTO')throw Error('Zahradní Město district missing');
+if(!districtContacts.some(contact=>contact.district==='ZAHRADNÍ MĚSTO'))throw Error('Zahradní Město contact missing');
+if(!buildings.some(b=>b.type==='villa'&&b.height<10&&b.w<110)||districtJobs.length!==24||districtContacts.length!==12)throw Error('Villas/local quest content');
 for(const contact of districtContacts){if(collision(contact.x,contact.y,10)||districtJobs.filter(job=>job.contactId===contact.id).length!==2)throw Error('Unreachable district contact');}
 if(collision(-5165,-1165,10)||!collision(worldMin-5,worldMin+300,10))throw Error('Negative world boundary');
 const local=districtJobs[0],follow=districtJobs[1],storyBefore=missionIndex;
@@ -162,7 +186,7 @@ saveProgress();lifeState=lifeSystem.restore(lifeState);if(lifeState.vehicles[0].
 for(let day=0;day<7;day++)lifeSystem.nextDay(lifeState);reconcileOwnedVehicles();if(lifeState.vehicles.length||cars.some(car=>car.ownedId===leased.id))throw Error('Lease repossession');
 closeContracts();interior=null;
 `,context);
-console.log('PASS: projected villa districts, 22 chained quests, NPC reachability, negative city bounds, stock UI orders/P&L/history, dealer purchase/spawn/sale/restore, leasing payments and repossession');
+console.log('PASS: projected villa districts, Zahradní Město, 24 chained quests, NPC reachability, negative city bounds, stock UI orders/P&L/history, dealer purchase/spawn/sale/restore, leasing payments and repossession');
 
 vm.runInContext(fs.readFileSync('web/city-map.js','utf8'),context);
 vm.runInContext(`

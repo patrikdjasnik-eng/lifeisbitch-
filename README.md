@@ -1,6 +1,6 @@
 # Life Is Bitch · Betonové sny
 
-Hratelný prototyp pouliční hry v češtině. Výchozí vizuál je noční top-down město ve stylu GTA2: auta, pěší, MHD, levelování a průřez interiéry. Zdroj hry je ve `web/`.
+Hratelný prototyp pouliční hry v češtině. Výchozí vizuál je noční top-down město ve stylu GTA2: auta, pěší, MHD, levelování, inventář, vzdělání, policejní test a průřez interiéry. Zdroj hry je ve `web/`.
 
 ## Android
 
@@ -17,8 +17,8 @@ Web: spustit HTTP server ve `web/`, například `python -m http.server 8080`.
 
 ## Ovládání
 
-Šipky na displeji: pohyb a řízení. E: dveře, kontakty, MHD a schody. F: auto. Tlačítka sprintu, brzdy a mapy jsou dole. Pozastavení přes horní tlačítko nebo Android Zpět.
+Šipky na displeji: pohyb a řízení. E: dveře, kontakty, MHD a schody. F: auto. I: inventář. Player menu obsahuje mapu, telefon, inventář, log novinek, kontakty a uložení. Tlačítka sprintu, brzdy a mapy jsou dole. Pozastavení přes horní tlačítko nebo Android Zpět.
 
 ## Stav ověření
 
-Herní logika prošla testy původního prototypu. Android sestavení potvrzuje pouze zelený Actions běh; výkon na skutečném telefonu vyžaduje samostatné ověření.
+Herní logika prošla testy prototypu včetně Zahradního Města, 24 lokálních questů, MHD pasažéra, policejního 20otázkového testu, inventáře, samostudia, střední školy a lepších prací. Android sestavení potvrzuje pouze zelený Actions běh; výkon na skutečném telefonu vyžaduje samostatné ověření.
