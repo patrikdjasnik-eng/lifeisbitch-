@@ -1,8 +1,38 @@
 const fs=require('fs'),vm=require('vm');
 const storage=new Map(),els=new Map(),canvas={getContext(){return {setTransform(){}}},addEventListener(){}};
 function el(){return {firstChild:{textContent:''},style:{},classList:{add(){},remove(){},toggle(){}},replaceChildren(){},append(){}}}
+const html=fs.readFileSync('web/index.html','utf8'),css=fs.readFileSync('web/style.css','utf8');
+if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons not grouped/styled');
+if(!css.includes('.playerPanel')||!css.includes('#menu #accountButton'))throw Error('Player/account button styles missing');
 const context={console,innerWidth:1440,innerHeight:900,devicePixelRatio:1,localStorage:{getItem(k){return storage.get(k)??null},setItem(k,v){storage.set(k,v)}},document:{querySelector(){return canvas},getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelectorAll(){return []},createElement(){return el()}},addEventListener(){},requestAnimationFrame(){}};
 context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
+vm.runInContext(`
+if(missions.length<14)throw Error('Extended story missions missing');
+const markers=importantNpcMarkers(true);
+for(const short of ['CÍL','BANK','OSVČ','PČR','JÍDLO','POSTEL'])if(!markers.some(marker=>marker.short===short))throw Error('Missing important NPC marker: '+short);
+if(phaseFromHour(6)!=='morning'||phaseFromHour(13)!=='day'||phaseFromHour(20)!=='evening'||phaseFromHour(2)!=='night')throw Error('Prague day phase mapping failed');
+if(weatherFromCode(61).condition!=='rain'||weatherFromCode(71).condition!=='snow'||weatherFromCode(45).condition!=='fog'||weatherFromCode(0).condition!=='clear')throw Error('Weather code mapping failed');
+terrainTiles.set('cached', {});
+applyPragueWeatherData({current:{weather_code:0,temperature_2m:11}});
+if(pragueWeather.condition!=='clear'||pragueWeather.wet||pragueWeather.temperature!==11||terrainTiles.size!==0)throw Error('Clear weather update failed');
+terrainTiles.set('cached', {});
+applyPragueWeatherData({current:{weather_code:61,temperature_2m:9}});
+if(pragueWeather.condition!=='rain'||!pragueWeather.wet||terrainTiles.size!==0)throw Error('Rain weather update failed');
+started=true;missionIndex=4;complete=false;legal=false;storyPath=null;choose('streetPath');
+if(storyPath!=='street'||missionIndex!==5||complete)throw Error('Street chapter continuation failed');
+missionIndex=4;complete=false;legal=false;storyPath=null;choose('cleanPath');
+if(storyPath!=='clean'||missionIndex!==cleanChapterStart||!legal||complete)throw Error('Clean chapter continuation failed');
+missionIndex=missions.length-1;complete=false;choose('cleanEnd');if(!complete)throw Error('Clean ending failed');
+localStorage.setItem('street-life-progress-v1', JSON.stringify({version:1,life:lifeSystem.create(),health:88,xp:0,cash:1200,rep:0,missionIndex:4,legal:false,complete:true,contractCount:0}));
+missionIndex=0;complete=true;legal=false;storyPath='street';restoreProgress();
+if(complete||missionIndex!==4||storyPath!==null)throw Error('Old street save migration failed');
+localStorage.setItem('street-life-progress-v1', JSON.stringify({version:1,life:lifeSystem.create(),health:88,xp:0,cash:1200,rep:0,missionIndex:4,legal:true,complete:true,contractCount:0}));
+missionIndex=0;complete=true;legal=false;storyPath=null;restoreProgress();
+if(complete||missionIndex!==cleanChapterStart||storyPath!=='clean'||!legal)throw Error('Old clean save migration failed');
+missionIndex=0;complete=false;legal=false;storyPath=null;
+`,context);
+console.log('PASS: extended story chain, old save migration, Prague clock phases, weather code mapping and cache refresh');
+
 vm.runInContext(`
 started=true;const shop=buildings.find(b=>b.name==='ŘEZNICTVÍ');if(!shop)throw Error('Shop missing');
 const door=doorFor(shop);player.x=door.x;player.y=door.y;if(nearestDoor()!==shop)throw Error('Shop entrance unreachable');
@@ -55,7 +85,23 @@ for(let i=0;i<8;i++)lifeSystem.nextDay(lifeState);if(!lifeState.loan.overdue)thr
 if(!lifeSystem.act(lifeState,player,'repay',1100)||lifeState.loan)throw Error('Loan repayment');
 if(!lifeSystem.act(lifeState,player,'loan',5000,['finance']))throw Error('Finance unlock');
 if(lifeSystem.restore({...lifeState,balance:-1}).balance!==0)throw Error('Corrupt save accepted');
+lifeState=lifeSystem.create();player.cash=90000;player.rep=0;
+if(lifeSystem.act(lifeState,player,'trade',{type:'buy',asset:'BETON',czk:500}))throw Error('Trade without account');
+lifeSystem.act(lifeState,player,'account');lifeSystem.act(lifeState,player,'deposit',50000);
+if(!lifeSystem.act(lifeState,player,'trade',{type:'buy',asset:'BETON',czk:500})||lifeState.portfolio.BETON<=0||lifeState.balance!==49500)throw Error('Shitcoin buy failed');
+if(!lifeSystem.act(lifeState,player,'trade',{type:'sell',asset:'BETON',units:'all'})||lifeState.portfolio.BETON!==0||lifeState.balance<=49500)throw Error('Shitcoin sell failed');
+if(lifeSystem.act(lifeState,player,'business','company'))throw Error('Company before OSVC accepted');
+if(!lifeSystem.act(lifeState,player,'business','osvc')||!lifeState.business.osvc||player.rep<10)throw Error('OSVC creation failed');
+if(!lifeSystem.act(lifeState,player,'business','tax')||lifeSystem.act(lifeState,player,'business','tax'))throw Error('Tax filing failed');
+const flat={id:'test-flat',name:'Byt test',district:'ŽIŽKOV',price:50000,rent:3500};
+if(!lifeSystem.act(lifeState,player,'rentFlat',flat)||lifeState.rental.type!=='flat')throw Error('Flat rent failed');
+lifeState.rental=null;
+if(!lifeSystem.act(lifeState,player,'mortgageProperty',flat)||lifeState.properties[0].mortgage!==37500)throw Error('Mortgage property failed');
+if(!lifeSystem.act(lifeState,player,'rentOutProperty','test-flat')||!lifeSystem.act(lifeState,player,'collectRent','test-flat'))throw Error('Property rent income failed');
+if(!lifeSystem.act(lifeState,player,'payMortgage','test-flat')||lifeState.properties[0].mortgage!==36500)throw Error('Mortgage payment failed');
+const restoredEconomy=lifeSystem.restore(lifeState);if(restoredEconomy.portfolio.BETON!==0||!restoredEconomy.business.osvc||restoredEconomy.properties.length!==1)throw Error('Economy restore failed');
 closeContracts();const bank=buildings.find(b=>b.name==='BANKA'),hostel=buildings.find(b=>b.name==='UBYTOVNA');
-for(const place of [bank,hostel]){if(!place)throw Error('Service missing');const door=doorFor(place);if(collision(door.x,door.y,10))throw Error('Blocked service door');enterBuilding(place);const point=lifeServicePoint();if(interiorCollision(point.x,point.y,10))throw Error('Blocked service point');player.x=point.x;player.y=point.y;if(!openLifeMenu('service'))throw Error('Service menu failed');closeContracts();interior.floor=1;if(openLifeMenu('service'))throw Error('Wrong floor service');interior=null;}
+const office=buildings.find(b=>b.name==='ÚŘAD PRÁCE'),apartment=buildings.find(b=>!b.name&&['residential','garden','old','modern'].includes(b.type));
+for(const place of [bank,hostel,office,apartment]){if(!place)throw Error('Service missing');const door=doorFor(place);if(collision(door.x,door.y,10))throw Error('Blocked service door');enterBuilding(place);const point=lifeServicePoint();if(interiorCollision(point.x,point.y,10))throw Error('Blocked service point');player.x=point.x;player.y=point.y;if(!openLifeMenu('service'))throw Error('Service menu failed');closeContracts();interior.floor=1;if(openLifeMenu('service'))throw Error('Wrong floor service');interior=null;}
 `, context);
-console.log('PASS: bank transfers, entitlements, loans/repayment/overdue, rental/sleep, recurring bills, SMS limits, persistence/corrupt saves, service entrances and floors');
+console.log('PASS: bank transfers, trading, business, property rent/buy/mortgage, entitlements, loans/repayment/overdue, rental/sleep, recurring bills, SMS limits, persistence/corrupt saves, service entrances and floors');

@@ -7,7 +7,7 @@ const materials=new Map();
 const boxGeometry=new THREE.BoxGeometry(1,1,1);
 const chunks=new Map(),carModels=new Map(),personModels=new Map();
 const matrix=new THREE.Matrix4(),position=new THREE.Vector3(),quaternion=new THREE.Quaternion(),scaling=new THREE.Vector3();
-let renderer,scene,camera,moon,moonTarget,marker,playerRing,contact,frameCount=0;
+let renderer,scene,camera,moon,moonTarget,hemiLight,marker,playerRing,contact,frameCount=0,lastAtmosphereKey='';
 let currentTarget=null;
 let interiorScene,interiorActor,interiorRing,interiorGroup,interiorKey=null;
 
@@ -56,6 +56,42 @@ function material(color,options={}){
   const key=color+JSON.stringify(options);
   if(!materials.has(key))materials.set(key,new THREE.MeshStandardMaterial({color,roughness:.76,...options}));
   return materials.get(key);
+}
+function interiorServiceKind(room) {
+  const name = room?.building?.name;
+  if (name === 'BANKA') return 'bank';
+  if (name === 'ÚŘAD PRÁCE') return 'office';
+  if (['UBYTOVNA', 'POTRAVINY', 'OBCHODNÍ CENTRUM', 'CENTRUM VINOHRADY'].includes(name)) return 'service';
+  if (!name && ['residential', 'garden', 'old', 'modern'].includes(room?.building?.type)) return 'property';
+  return null;
+}
+function applyAtmosphere(weather = {}) {
+  if (!scene || !renderer) return;
+  const phase = weather.phase || 'night', condition = weather.condition || 'rain';
+  const key = phase + ':' + condition;
+  if (key === lastAtmosphereKey) return;
+  lastAtmosphereKey = key;
+  const phaseSet = phase === 'morning'
+    ? { bg:'#30445a', fog:'#5f7386', hemi:1.7, moon:2.1, exposure:1.35, sky:'#d7e7f0' }
+    : phase === 'day'
+      ? { bg:'#476a7b', fog:'#7f98a4', hemi:2.1, moon:1.35, exposure:1.55, sky:'#e6f4fb' }
+      : phase === 'evening'
+        ? { bg:'#2f354f', fog:'#725c69', hemi:1.55, moon:2.25, exposure:1.22, sky:'#ffd1a5' }
+        : { bg:'#465768', fog:'#465768', hemi:1.45, moon:2.7, exposure:1.25, sky:'#bfd9f3' };
+  const modifier = condition === 'fog'
+    ? { bg:'#6a7780', fog:'#a7b2b8', density:.011, exposure:.9, moon:.55, hemi:.95 }
+    : ['rain','drizzle','storm'].includes(condition)
+      ? { bg:'#2d4252', fog:'#566c78', density:condition==='storm' ? .009 : .007, exposure:.95, moon:.75, hemi:.9 }
+      : condition === 'snow'
+        ? { bg:'#6f879a', fog:'#b5c7d3', density:.008, exposure:1.15, moon:.9, hemi:1.05 }
+        : condition === 'cloudy'
+          ? { bg:'#3b5260', fog:'#61717a', density:.007, exposure:1.05, moon:.85, hemi:.95 }
+          : { density:.0058, exposure:1, moon:1, hemi:1 };
+  scene.background.set(modifier.bg || phaseSet.bg);
+  if (scene.fog) { scene.fog.color.set(modifier.fog || phaseSet.fog); scene.fog.density = modifier.density; }
+  renderer.toneMappingExposure = phaseSet.exposure * modifier.exposure;
+  if (hemiLight) { hemiLight.color.set(phaseSet.sky); hemiLight.intensity = phaseSet.hemi * modifier.hemi; }
+  if (moon) moon.intensity = phaseSet.moon * modifier.moon;
 }
 function textureCanvas(width,height,draw){
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
@@ -280,7 +316,7 @@ function setup(){
   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
   scene=new THREE.Scene();scene.background=new THREE.Color('#465768');scene.fog=new THREE.FogExp2('#465768',.006);addBoundaryFog();
   camera=new THREE.OrthographicCamera(-30,30,20,-20,.1,300);
-  scene.add(new THREE.HemisphereLight('#bfd9f3','#554336',1.45));
+  hemiLight=new THREE.HemisphereLight('#bfd9f3','#554336',1.45);scene.add(hemiLight);
   moon=new THREE.DirectionalLight('#c9ddf7',2.7);moon.position.set(30,50,20);moon.castShadow=true;
   moon.shadow.mapSize.set(2048,2048);moon.shadow.camera.left=-35;moon.shadow.camera.right=35;moon.shadow.camera.top=35;moon.shadow.camera.bottom=-35;moon.shadow.camera.near=1;moon.shadow.camera.far=120;moon.shadow.bias=-.0003;moon.shadow.normalBias=.04;
   moonTarget=new THREE.Object3D();scene.add(moonTarget);moon.target=moonTarget;scene.add(moon);
@@ -298,6 +334,7 @@ function setup(){
   window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);updateCameraSize()});updateCameraSize();
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();window.streetLifeRenderer=null;canvas.style.display='none';source.onError('3D vykreslování bylo přerušeno. Pokračuje 2D verze. Obnov stránku pro návrat do 3D.');});
   window.streetLifeRenderer={render(state){
+    applyAtmosphere(state.weather);
     camera.zoom = state.zoom || 1;
     if(state.interior){renderInterior(state);return;}updateCameraSize();
     const center=new THREE.Vector3(state.camera.x*unit,0,state.camera.y*unit);
@@ -358,6 +395,17 @@ function renderInterior(state){
       const sign=textureCanvas(512,128,(ctx,w,h)=>{ctx.fillStyle='#372c28';ctx.fillRect(0,0,w,h);ctx.fillStyle='#ead9c8';ctx.font='bold 44px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('KAREL · ŘEZNÍK',w/2,h/2);});
       const plaque=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.55),new THREE.MeshBasicMaterial({map:sign,transparent:true,side:THREE.DoubleSide}));
       plaque.position.set(width*.29,1.9,depth*.35);interiorGroup.add(plaque);
+    }
+    const serviceKind = room.floor === 0 ? interiorServiceKind(room) : null;
+    if (serviceKind) {
+      const color = serviceKind === 'bank' ? '#2f5f89' : serviceKind === 'office' ? '#6c5c8a' : serviceKind === 'property' ? '#7a6348' : '#5b7d68';
+      const clerk = makePerson(color);
+      scene.remove(clerk);
+      clerk.position.set(width*.55,.18,depth*.52);
+      clerk.rotation.y = 0;
+      interiorGroup.add(clerk);
+      cube(interiorGroup,material('#23303b'),width*.55,.62,depth*.52+.3,1.15,.55,.32);
+      cube(interiorGroup,material('#d8e6ef',{emissive:serviceKind==='bank'?'#5aa9ff':'#ffffff',emissiveIntensity:.25}),width*.55,.94,depth*.52+.48,.9,.12,.04,false);
     }
     interiorScene.add(interiorGroup);interiorKey=key;
   }
