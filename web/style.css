@@ -277,4 +277,28 @@ footer { right: 26px; }
 .cityMapLegend i{width:9px;height:9px;border:2px solid white;background:#4285df;border-radius:50%}.cityMapLegend b{color:#d79b41}.cityMapLegend span{margin-left:14px;color:#8b9692}
 .cityMapCredit{position:absolute;bottom:5px;right:10px;font-size:9px;color:#9aa098}
 .cityMapScale{position:absolute;bottom:30px;right:24px;font-size:10px;color:#707c73;border:solid #8e9990;border-width:0 1px 2px;text-align:center;padding-bottom:4px}
+#cityMapOverlay.darkMap{background:#07101b;color:#dce8ee}
+#cityMapOverlay.darkMap .cityMapSidebar{background:#101a26f2;border-color:#25384a;box-shadow:0 8px 28px #0009}
+#cityMapOverlay.darkMap .cityMapBrand{color:#e5eef2}
+#cityMapOverlay.darkMap .cityMapBrand small,#cityMapOverlay.darkMap .cityMapResults .mapResultCount,#cityMapOverlay.darkMap .mapPlaceResult small,#cityMapOverlay.darkMap .cityMapDetails p,#cityMapOverlay.darkMap .cityMapLegend,#cityMapOverlay.darkMap .cityMapLegend span,#cityMapOverlay.darkMap .cityMapCredit,#cityMapOverlay.darkMap .cityMapScale{color:#9baeba}
+#cityMapOverlay.darkMap .cityMapSearch{background:#0b1420;border-color:#26394b}
+#cityMapOverlay.darkMap .cityMapSearch>span{color:#87a2b3}
+#cityMapOverlay.darkMap #cityMapSearch{color:#e8f1f6}
+#cityMapOverlay.darkMap #cityMapSearch::placeholder{color:#7f929f}
+#cityMapOverlay.darkMap button{color:#dbe7ee}
+#cityMapOverlay.darkMap .cityMapFilters button{background:#111e2a;border-color:#2a3d4c;color:#c7d6de}
+#cityMapOverlay.darkMap .cityMapFilters button.selected{background:#173326;border-color:#59a77b;color:#8ee3af}
+#cityMapOverlay.darkMap button.mapPlaceResult{border-bottom-color:#213241}
+#cityMapOverlay.darkMap button.mapPlaceResult:hover{background:#132230}
+#cityMapOverlay.darkMap .cityMapDetails{border-top-color:#253848}
+#cityMapOverlay.darkMap .cityMapDetails>small{color:#8fd0ac}
+#cityMapOverlay.darkMap .cityMapDetails h2{color:#eff7f9}
+#cityMapOverlay.darkMap .cityMapDetails .mapSecondary{background:#1a2a38;color:#b0c0c9}
+#cityMapOverlay.darkMap .cityMapClose,#cityMapOverlay.darkMap .cityMapControls{background:#111d2a;box-shadow:0 5px 16px #0009}
+#cityMapOverlay.darkMap .cityMapClose span{color:#94a6b0}
+#cityMapOverlay.darkMap .cityMapControls button{background:#111d2a;border-bottom-color:#263849;color:#e3edf2}
+#cityMapOverlay.darkMap .cityMapControls button:hover{background:#18283a}
+#cityMapOverlay.darkMap .cityMapLegend{background:#101a26e8}
+#cityMapOverlay.darkMap .cityMapLegend i{border-color:#dce8ee}
+#cityMapOverlay.darkMap .cityMapScale{border-color:#788d99}
 @media(max-width:800px){.cityMapSidebar{top:12px;left:12px;right:66px;bottom:auto;width:auto;padding:13px;border-radius:13px;max-height:54vh}.cityMapBrand{font-size:18px;margin-bottom:10px}.cityMapBrand small{font-size:7px;letter-spacing:1px}.cityMapBrand>span{font-size:12px;padding:6px}.cityMapFilters{gap:4px;margin-top:10px}#cityMapOverlay .cityMapFilters button{padding:6px 8px;font-size:10px}.cityMapResults{max-height:145px}.cityMapDetails{margin-top:8px;padding-top:10px}.cityMapDetails h2{font-size:17px}.cityMapDetails p{margin:4px 0}.cityMapSidebar:has(.cityMapDetails:not(.hidden)) .cityMapResults{display:none}#cityMapOverlay .cityMapClose{right:10px;top:13px;padding:12px}.cityMapClose span,.cityMapLegend span{display:none}.cityMapControls{right:10px;bottom:90px}.cityMapLegend{left:10px;bottom:18px}.cityMapScale{right:12px}.cityMapCredit{font-size:8px}}

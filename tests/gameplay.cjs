@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm');
 const storage=new Map(),els=new Map(),canvas={getContext(){return {setTransform(){}}},addEventListener(){}};
 function el(){return {firstChild:{textContent:''},style:{setProperty(){}},setAttribute(){},classList:{add(){},remove(){},toggle(){}},children:[],replaceChildren(){this.children=[]},append(...items){this.children.push(...items)}}}
 const html=fs.readFileSync('web/index.html','utf8'),css=fs.readFileSync('web/style.css','utf8');
-if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||!html.includes('id="inventoryButton"')||!html.includes('id="logButton"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons not grouped/styled');
+if(!html.includes('id="playerMenuToggle"')||!html.includes('id="playerActions"')||!html.includes('id="saveGame"')||!html.includes('id="inventoryButton"')||!html.includes('id="logButton"')||!html.includes('id="cityMapTheme"')||html.includes('ZVUK: VYPNUTO'))throw Error('Player menu buttons/map theme not grouped/styled');
 if(!css.includes('.playerPanel')||!css.includes('#menu #accountButton'))throw Error('Player/account button styles missing');
 const context={console,innerWidth:1440,innerHeight:900,devicePixelRatio:1,localStorage:{getItem(k){return storage.get(k)??null},setItem(k,v){storage.set(k,v)}},document:{querySelector(){return canvas},getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelectorAll(){return []},createElement(){return el()}},addEventListener(){},requestAnimationFrame(){}};
 context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
@@ -86,16 +86,24 @@ vm.runInContext(`
 closeContracts();interior=null;started=true;paused=false;player.car=null;player.cash=5000;player.xp=0;player.rep=0;
 const policeStation=buildings.find(b=>b.name==='POLICIE ČR'),library=buildings.find(b=>b.name==='KNIHOVNA ZAHRADNÍ MĚSTO'),school=buildings.find(b=>b.name==='STŘEDNÍ ŠKOLA'),internet=buildings.find(b=>b.name==='FAKE INTERNET CAFÉ'),officeForJobs=buildings.find(b=>b.name==='ÚŘAD PRÁCE');
 if(!policeStation||!library||!school||!internet||!officeForJobs)throw Error('Education/police buildings missing');
+missionIndex=0;complete=false;dialogOpen=false;showDialog();if(!document.getElementById('choices').children.some(child=>child.textContent==='Ukončit konverzaci'))throw Error('Story dialog close option missing');closeContracts();
+if(!openFakeMessages()||!document.getElementById('choices').children.some(child=>String(child.textContent).includes('Eliška')))throw Error('Fake text messages missing');closeContracts();
 enterBuilding(policeStation);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='police')throw Error('Police service menu');
+if(!document.getElementById('choices').children.some(child=>child.textContent==='Ukončit konverzaci')||!document.getElementById('choices').children.some(child=>child.textContent==='Opustit budovu'))throw Error('NPC dialog exit/leave buttons missing');
 if(!startPoliceKnowledgeTest()||policeKnowledgeQuestions.length!==20)throw Error('Police knowledge test did not start');
+if(!document.getElementById('choices').children.some(child=>child.textContent==='Ukončit test'))throw Error('Police test cancel missing');
 for(let i=0;i<policeKnowledgeQuestions.length;i++)if(!answerPoliceKnowledgeTest(policeKnowledgeQuestions[i].answer))throw Error('Police test answer failed '+i);
 if(!policeKnowledgeState.passed||unlockedWeapons.length!==policeWeapons.length||!policeWeapons.every(weapon=>hasInventoryItem(weapon.id))||!hasInventoryItem('policeCertificate'))throw Error('Police weapons not unlocked');
-closeContracts();interior=null;enterBuilding(library);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='library')throw Error('Library service menu');
+if(!leaveInteriorFromDialog()||interior||dialogOpen)throw Error('Leave building from NPC dialog failed');
+enterBuilding(library);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='library')throw Error('Library service menu');
 for(let i=0;i<3;i++)if(!studyAt('library'))throw Error('Library self-study failed');
 if(!educationState.highSchool||!educationState.betterJobs||!hasInventoryItem('diploma')||!hasInventoryItem('libraryCard'))throw Error('Self-study high school path failed');
 closeContracts();interior=null;enterBuilding(internet);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='internet')throw Error('Fake internet service menu');
+if(fakeInternetPages.length<6||!document.getElementById('choices').children.some(child=>String(child.textContent).includes('PrahaDnes.fake')))throw Error('Realistic fake internet portal missing');
+if(!openFakeInternetPage('jobs')||!document.getElementById('dialogTitle').textContent.includes('Brigády')||!document.getElementById('choices').children.some(child=>String(child.textContent).includes('Junior IT')))throw Error('Fake internet page missing');
 if(studyAt('internet'))throw Error('Study accepted after school completion');
 closeContracts();interior=null;enterBuilding(school);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='school')throw Error('High school service menu');
+if(!document.getElementById('choices').children.some(child=>child.textContent==='Opustit budovu'))throw Error('School leave button missing');
 closeContracts();interior=null;player.xp=levelThresholds[5];enterBuilding(officeForJobs);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||!takeBetterJob('automation'))throw Error('Better job unavailable after education');
 if(player.cash<=5000||!gameplayLog.some(item=>item.text.includes('Automatizace objednávek')))throw Error('Better job payout/log missing');
 closeContracts();interior=null;if(!openInventory()||!dialogOpen)throw Error('Inventory dialog missing');closeContracts();if(!openLogList()||!gameplayLog.some(item=>item.text.includes('Zahradní Město')))throw Error('Feature log missing');
@@ -192,6 +200,9 @@ vm.runInContext(fs.readFileSync('web/city-map.js','utf8'),context);
 vm.runInContext(`
 closeContracts();interior=null;started=true;paused=false;player.x=255;player.y=350;
 const navigation=window.lifeCityMap;
+if(!navigation.state.dark)throw Error('Map dark mode default missing');
+if(navigation.toggleTheme(false)!==false||navigation.state.dark)throw Error('Map light theme toggle failed');
+if(navigation.toggleTheme(true)!==true||!navigation.state.dark)throw Error('Map dark theme toggle failed');
 if(!navigation.find('orechovka').some(point=>point.name==='OŘECHOVKA')||!navigation.find('burza','finance').some(point=>point.name==='BURZA PRAHA')||navigation.find('BAVARIA','finance').length)throw Error('Map search/filter');
 for(const point of navigation.pois().filter(point=>point.category!=='district')){
  const route=navigation.buildRoute(player,point);if(!route.length)throw Error('No street route to '+point.name);

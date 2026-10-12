@@ -44,7 +44,11 @@ const featureLog = [
   'Novinka: Zahradní Město je nová hratelná čtvrť s knihovnou, fake internetem a střední školou.',
   'Novinka: Policie odemyká herní zbraně až po dokončení 20otázkového vědomostního testu.',
   'Novinka: Rozšířený inventář sleduje doklady, studium, certifikáty a herní vybavení.',
-  'Novinka: Střední škola odemyká lepší práce; dostaneš se k ní levelem nebo samostudiem.'
+  'Novinka: Střední škola odemyká lepší práce; dostaneš se k ní levelem nebo samostudiem.',
+  'Novinka: Každý NPC dialog má ukončení konverzace a v budovách i rychlé opuštění budovy.',
+  'Novinka: Mapa pod klávesou M má tmavý režim a přepínač motivu.',
+  'Novinka: Telefon dostal textový fake inbox se zprávami z města.',
+  'Novinka: Fake internet café má realistický textový web s články, fórem, bazarem a samostudiem.'
 ];
 const inventoryCatalog = {
   phone: { name: 'Telefon', type: 'utility' },
@@ -95,6 +99,88 @@ const betterJobs = [
   { id: 'warehouse', title: 'Koordinátor skladu', level: 3, reward: 3200, xp: 150, rep: 12 },
   { id: 'it-helpdesk', title: 'Junior IT podpora', level: 4, reward: 5200, xp: 210, rep: 18 },
   { id: 'automation', title: 'Automatizace objednávek', level: 5, reward: 8200, xp: 290, rep: 25 }
+];
+const fakeTextMessages = [
+  { time: '06:42', from: 'Eliška', text: 'Doma je klid. Jestli půjdeš kolem potravin, vezmi chleba a něco teplého.' },
+  { time: '07:18', from: 'Pavel', text: 'Servis otevírá v osm. Když dorazíš bez výmluv, najdu ti další legální směnu.' },
+  { time: '08:03', from: 'Míra · knihovna', text: 'Dnes máme volný stůl u okna. Samostudium je pomalé, ale počítá se.' },
+  { time: '09:11', from: 'Město info', text: 'V Zahradním Městě prší a autobusy nabírají zpoždění. Počítej s delší cestou.' },
+  { time: '10:27', from: 'Banka', text: 'Připomínka: účet a splátky řeš na pobočce. Podezřelé odkazy ignoruj.' },
+  { time: '11:05', from: 'Sousedský chat', text: 'Někdo nechal u knihovny batoh. Je u pultu, žádná panika.' }
+];
+const fakeInternetPages = [
+  {
+    id: 'news',
+    site: 'PrahaDnes.fake',
+    url: 'https://praha-dnes.fake/zahradni-mesto/ranni-provoz',
+    title: 'Ranní provoz v Zahradním Městě brzdí déšť a objížďky',
+    description: 'Lokální zpráva z herního města.',
+    lines: [
+      'Krátká přeháňka změnila několik vedlejších ulic v pomalé kolony. Řidiči volí hlavní tahy, chodci se drží podloubí.',
+      'Městský dispečink doporučuje cestu MHD a trpělivost. Největší zdržení je kolem knihovny a školy.',
+      'Policie připomíná, že klidné chování u kontroly šetří čas všem stranám.'
+    ]
+  },
+  {
+    id: 'jobs',
+    site: 'PraceBezCV.fake',
+    url: 'https://prace-bez-cv.fake/smeny/zizkov-a-zahradni',
+    title: 'Brigády dnes: sklad, helpdesk a noční úklid',
+    description: 'Fiktivní pracovní portál pro herní ekonomiku.',
+    lines: [
+      'Sklad nabízí nástup hned po krátkém zaškolení. Výhodou je dochvilnost, základní počty a čistý záznam v telefonu.',
+      'Junior IT podpora bere lidi po dokončené škole nebo samostudiu. První směny jsou jednodušší: hesla, tiskárny, tikety.',
+      'Noční úklid je dostupný hned, ale platí méně. Lepší práce odemkne vzdělání a reputace.'
+    ]
+  },
+  {
+    id: 'study',
+    site: 'SkolaOnline.fake',
+    url: 'https://skola-online.fake/samostudium/stredni-zaklady',
+    title: 'Jak dohnat střední školu samostudiem',
+    description: 'Studijní rozcestník pro hráče.',
+    lines: [
+      'Začni malými bloky: právo, finance, čeština a bezpečnost ve městě. Jeden večer nestačí, ale každý bod se počítá.',
+      'Knihovna dává klid a víc bodů. Fake internet je rychlejší, ale musíš filtrovat hluk a reklamy.',
+      'Po šesti bodech samostudia můžeš jít na lepší práce i bez formální cesty přes školu.'
+    ]
+  },
+  {
+    id: 'forum',
+    site: 'ForumBeton.fake',
+    url: 'https://forum-beton.fake/vlakno/normalni-zivot',
+    title: 'Vlákno: Dá se začít znovu, když máš špatnou pověst?',
+    description: 'Textové fórum obyvatel.',
+    lines: [
+      'Uživatel BetonovySen píše: nejdřív si srovnej denní režim, pak dluhy, pak práci. V opačném pořadí tě to semele.',
+      'Uživatelka KavaNaRohu radí: zapisuj si, komu co slíbíš. Reputace roste pomalu a padá rychle.',
+      'Moderátor uzavírá: žádné návody na průšvihy. Jen herní rady a civilní řešení.'
+    ]
+  },
+  {
+    id: 'bazaar',
+    site: 'BazarPodchod.fake',
+    url: 'https://bazar-podchod.fake/inzeraty/praha',
+    title: 'Bazar: starý telefon, kolo po servisu, učebnice',
+    description: 'Fiktivní inzertní stránka.',
+    lines: [
+      'Telefon s prasklým rohem: levný, funkční, bez záruky. Pro komunikaci stačí, ale baterka drží jen půl dne.',
+      'Městské kolo po servisu: brzdy nové, světlo slabé. V dešti radši pomalu.',
+      'Balík učebnic: základy občanky, ekonomiky a češtiny. Ideální pro samostudium v knihovně.'
+    ]
+  },
+  {
+    id: 'transit',
+    site: 'MHDText.fake',
+    url: 'https://mhd-text.fake/linky/nocni-prehled',
+    title: 'Noční MHD: kam dojedeš bez auta',
+    description: 'Textový přehled herních spojů.',
+    lines: [
+      'Linky jezdí pomaleji v dešti, ale pořád jsou nejlevnější způsob přesunu mezi čtvrtěmi.',
+      'Nastupuješ jako pasažér a vystoupíš až na cílové zastávce. Během jízdy nejde přeskakovat ulice.',
+      'Když nemáš na jízdné, najdi legální směnu nebo kratší trasu pěšky.'
+    ]
+  }
 ];
 function inventoryCapacity() { return educationState.highSchool ? 32 : 24; }
 function inventoryCount() { return inventory.reduce((sum, item) => sum + item.qty, 0); }
@@ -407,7 +493,7 @@ function showTransitMenu(stop){
   for(const destination of transitStops.filter(item=>item.lineId===line.id&&item!==stop)){
     const button=document.createElement('button');button.textContent=destination.name+' · '+line.fare+' Kč';button.disabled=player.cash<line.fare;button.onclick=()=>rideTransit(destination.index);$('choices').append(button);
   }
-  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=()=>{activeTransitStop=null;closeContracts();};$('choices').append(close);return true;
+  addConversationExitButtons({allowLeave:false});return true;
 }
 function rideTransit(index){
   const stop=activeTransitStop;
@@ -460,10 +546,21 @@ const firstChapterEnd=4,cleanChapterStart=9;
 let missionIndex=0,legal=false,complete=false,storyPath=null;
 function mission(){if(activeDistrictJob){const job=districtJobs.find(item=>item.id===activeDistrictJob);return {...job.target,title:job.title,text:job.text+' Odměna '+formatMoney(job.reward)+' · '+job.xp+' XP.',speaker:job.receiver}}if(activeContract){const item=substances.find(entry=>entry.id===activeContract.substanceId),route=deliveryRoutes[activeContract.routeIndex];return {...route,title:'Zakázka · '+item.name,text:'Doruč '+item.name+' kontaktu. Odměna '+item.reward.toLocaleString('cs-CZ')+' Kč a '+item.xp+' XP.',speaker:'KONTAKT'}}return missions[missionIndex]}function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function notify(text){$('toast').textContent=text;$('toast').style.opacity='1';toastTimer=4}
+function exitInterior(message='Opustil jsi budovu.'){
+  if(!interior)return false;
+  const outside=interior.outside;
+  if(dialogOpen)closeContracts();
+  interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;saveProgress();updateHud();notify(message);return true;
+}
+function leaveInteriorFromDialog(){return exitInterior('Opustil jsi budovu.');}
+function addConversationExitButtons(options={}){
+  const close=document.createElement('button');close.textContent=options.closeLabel||'Ukončit konverzaci';close.onclick=closeContracts;$('choices').append(close);
+  if(options.allowLeave!==false&&interior){const leave=document.createElement('button');leave.textContent='Opustit budovu';leave.onclick=leaveInteriorFromDialog;$('choices').append(leave);}
+}
 function chapterEyebrow(){if(complete&&!activeContract&&!activeDistrictJob)return'VOLNÝ REŽIM / ZAKÁZKY';return missionIndex<=firstChapterEnd?'KAPITOLA 01 / PRVNÍ NOC':storyPath==='street'?'KAPITOLA 02 / ULICE VRACÍ ÚDER':'KAPITOLA 02 / DRUHÁ ŠANCE'}
 function updateHud(){ if($('health'))$('health').textContent=Math.round(player.health)+'/100';$('cash').textContent=player.cash.toLocaleString('cs-CZ')+' Kč';$('rep').textContent=player.rep;$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat));$('missionTitle').textContent=complete&&!activeContract&&!activeDistrictJob?'Nový den':mission().title;$('missionText').textContent=complete&&!activeContract&&!activeDistrictJob?'Druhá kapitola je za tebou. Otevři Kontakty a pokračuj v zakázkách.':mission().text;$('objective').textContent=complete&&!activeContract&&!activeDistrictJob?'J · Kontakty a zakázky':mission().label;const eyebrow=document.querySelector('.mission .eyebrow');if(eyebrow)eyebrow.textContent=chapterEyebrow();updateProgressionHud();if(interior)updateInteriorHud();}
 function advance(){missionIndex=Math.min(missionIndex+1,missions.length-1);updateHud()}
-function showDialog(){if(complete||dialogOpen)return;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent=mission().speaker;$('dialogTitle').textContent=mission().title;$('dialogText').textContent=mission().dialog;$('choices').replaceChildren();for(const [text,action]of mission().choices){const button=document.createElement('button');button.textContent=text;button.onclick=()=>choose(action);$('choices').append(button)}}
+function showDialog(){if(complete||dialogOpen)return;dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('speaker').textContent=mission().speaker;$('dialogTitle').textContent=mission().title;$('dialogText').textContent=mission().dialog;$('choices').replaceChildren();for(const [text,action]of mission().choices){const button=document.createElement('button');button.textContent=text;button.onclick=()=>choose(action);$('choices').append(button)}addConversationExitButtons({allowLeave:false});}
 function choose(action){dialogOpen=false;$('dialog').classList.add('hidden');if(action==='illegal'){player.heat=1.8;notify('Zásilka převzata. Policie je ve střehu.');advance()}if(action==='legal'){legal=true;storyPath='clean';setServiceMission();advance()}if(action==='deliver'&&missionIndex===1&&!complete){awardXp(80);player.cash+=legal?900:1800;player.rep+=10;notify('Úkol splněn · '+(legal?'900':'1 800')+' Kč');advance()}if(action==='family'){awardXp(40);player.cash=Math.max(0,player.cash-800);player.rep+=15;notify('Eliška: Díky. Dávej na sebe pozor.');advance()}if(action==='decline')advance();if(action==='hide'){awardXp(40);player.heat=0;notify('Pozornost policie klesla.');advance()}if(action==='streetPath'){storyPath='street';missionIndex=5;player.heat=Math.min(5,player.heat+.8);notify('Kapitola 02: Ulice vrací úder.')}if(action==='cleanPath'){storyPath='clean';legal=true;missionIndex=cleanChapterStart;player.heat=Math.max(0,player.heat-.5);notify('Kapitola 02: Druhá šance.')}if(action==='streetPickup'){awardXp(90);player.cash+=1300;player.rep+=8;player.heat=Math.min(5,player.heat+1);notify('Telefon převzat · +1 300 Kč');advance()}if(action==='streetDrop'){awardXp(120);player.cash+=2200;player.rep+=12;player.heat=Math.min(5,player.heat+1.2);notify('Balík předán · +2 200 Kč');advance()}if(action==='helpMore'){awardXp(60);player.cash=Math.max(0,player.cash-1200);player.rep+=20;player.heat=Math.max(0,player.heat-.4);notify('Doma necháváš peníze a trochu klidu.');advance()}if(action==='ignoreMore'){player.rep=Math.max(0,player.rep-5);player.heat=Math.min(5,player.heat+.5);notify('Eliška mlčí. Tohle bude bolet později.');advance()}if(action==='cleanSwitch'){storyPath='clean';legal=true;missionIndex=cleanChapterStart;player.heat=0;notify('Zastavil ses včas. Pavel čeká v servisu.')}if(action==='garageShift'){awardXp(100);player.cash+=1100;player.rep+=12;player.heat=Math.max(0,player.heat-.3);notify('Směna hotová · +1 100 Kč');advance()}if(action==='jobOffice'){awardXp(70);player.cash+=300;player.rep+=12;notify('Registrace hotová · doporučení na práci · +300 Kč');advance()}if(action==='familyGroceries'){awardXp(50);player.cash=Math.max(0,player.cash-450);player.rep+=20;player.health=Math.min(100,player.health+10);notify('Nákup doručen domů · +10 zdraví');advance()}if(action==='clearRecord'){awardXp(80);player.heat=0;player.rep+=15;notify('Pozornost policie vymazaná na nulu.');advance()}if(action.endsWith('End')){complete=true;notify(action==='streetEnd'?'Konec kapitoly: Král bez koruny.':'Konec kapitoly: Druhá šance.');$('missionText').textContent=action==='streetEnd'?'Ulice ti otevřela dveře. Otázka je, co si vezme zpátky.':'Peníze nejsou všechno. Zítra začínáš v servisu.';}updateHud();saveProgress()}
 function collision(x,y,r){if(interior)return interiorCollision(x,y,r);return x<worldMin+r||y<worldMin+r||x>size-r||y>size-r||nearbyBuildings(x,y,r).some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h)}
 function doorFor(b){return {x:b.x+b.w/2,y:b.y+b.h+12}}
@@ -534,10 +631,7 @@ function showButcherShop() {
     button.onclick = () => buyButcherProduct(item.id);
     $('choices').append(button);
   }
-  const close = document.createElement('button');
-  close.textContent = 'Díky, zatím nic';
-  close.onclick = closeShop;
-  $('choices').append(close);
+  addConversationExitButtons({closeLabel:'Díky, zatím nic'});
   return true;
 }
 function buyButcherProduct(id) {
@@ -552,7 +646,7 @@ function buyButcherProduct(id) {
   notify('Koupeno: ' + item.name + ' · −' + item.price + ' Kč · zdraví ' + Math.round(player.health) + '/100');
   return true;
 }
-function useInterior(){if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){const outside=interior.outside;interior=null;Object.assign(player,outside);camera.x=player.x;camera.y=player.y;updateHud();notify('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
+function useInterior(){if(isLifeService() && distance(player, lifeServicePoint()) <= 45){openLifeMenu('service');return;}if(isButcherRoom()&&distance(player,butcherPoint())<=45){showButcherShop();return;}const points=interiorPoints();if(distance(player,points.exit)<25&&interior.floor===0){exitInterior('Zpátky na ulici.');return;}if(distance(player,points.up)<Math.min(18,interior.depth*.075)){if(interior.floor<interior.maxFloor){interior.floor++;player.x=points.down.x;player.y=points.down.y;updateHud();notify('Patro '+interior.floor)}else notify('Jsi v nejvyšším patře.');return;}if(distance(player,points.down)<Math.min(18,interior.depth*.075)){if(interior.floor>0){interior.floor--;player.x=points.up.x;player.y=points.up.y;updateHud();notify(interior.floor?'Patro '+interior.floor:'Přízemí')}else notify('Jsi v přízemí.');return;}notify('Přejdi ke schodišti nebo k východu.');}
 function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
 function interact(){if(!started||paused||dialogOpen)return;if(transitRide){notify('Jedeš MHD. Vystoupíš na cílové zastávce.');return;}if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeDistrictJob)completeDistrictJob();else if(activeContract)completeContract();else showDialog();return;}const contact=nearestDistrictContact();if(contact){showDistrictJobs(contact);return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
 
@@ -1049,7 +1143,7 @@ function showDistrictJobs(contact=null){
     button.onclick=()=>acceptDistrictJob(job.id);$('choices').append(button);
   }
   if(activeDistrictJob){const cancel=document.createElement('button');cancel.textContent='Zrušit místní úkol';cancel.onclick=()=>{activeDistrictJob=null;closeContracts();saveProgress();updateHud();};$('choices').append(cancel);}
-  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+  addConversationExitButtons({allowLeave:false});return true;
 }
 function acceptDistrictJob(id){
   const job=districtJobs.find(item=>item.id===id);
@@ -1085,6 +1179,8 @@ function renderPoliceKnowledgeQuestion(){
   $('dialogText').textContent=question.question+' · skóre '+policeKnowledgeState.score+'/'+policeKnowledgeState.index;
   $('choices').replaceChildren();
   question.choices.forEach((choice,index)=>{const button=document.createElement('button');button.textContent=choice;button.onclick=()=>answerPoliceKnowledgeTest(index);$('choices').append(button);});
+  const cancel=document.createElement('button');cancel.textContent='Ukončit test';cancel.onclick=()=>{recordLog('Policie: vědomostní test přerušen.');closeContracts();openLifeMenu('service');};$('choices').append(cancel);
+  if(interior){const leave=document.createElement('button');leave.textContent='Opustit budovu';leave.onclick=leaveInteriorFromDialog;$('choices').append(leave);}
 }
 function startPoliceKnowledgeTest(){
   if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='police'||distance(player,lifeServicePoint())>45||policeKnowledgeState.passed)return false;
@@ -1135,7 +1231,7 @@ function openInventory(){
   for(const item of inventory){const meta=inventoryCatalog[item.id]||{};choiceInfo((meta.type||'item').toUpperCase()+' · '+inventoryName(item.id)+(item.qty>1?' ×'+item.qty:''));}
   if(!inventory.length)choiceInfo('Inventář je prázdný.');
   const log=document.createElement('button');log.textContent='Otevřít log novinek';log.onclick=()=>{closeContracts();openLogList();};$('choices').append(log);
-  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+  addConversationExitButtons();return true;
 }
 function openLogList(){
   if(!started||paused||dialogOpen)return false;
@@ -1143,7 +1239,7 @@ function openLogList(){
   $('speaker').textContent='LOG LIST';$('dialogTitle').textContent='Novinky a události';
   $('dialogText').textContent='Seznam posledních systémových novinek a herních odemčení.';
   for(const item of gameplayLog.slice(-18).reverse())choiceInfo('Den '+item.day+' · '+item.text);
-  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);return true;
+  addConversationExitButtons();return true;
 }
 function targetAvailable(){return Boolean(activeDistrictJob)||Boolean(activeContract)||!complete}
 function updateProgressionHud(){
@@ -1167,9 +1263,13 @@ function openContracts(){
     button.append(title,details);button.disabled=!unlocked||!complete||Boolean(activeContract)||Boolean(activeDistrictJob);button.onclick=()=>acceptContract(item.id);$('choices').append(button);
   }
   if(activeContract){const cancel=document.createElement('button');cancel.textContent='Zrušit zakázku (bez odměny a XP)';cancel.onclick=()=>{activeContract=null;closeContracts();saveProgress();updateHud();notify('Zakázka zrušena.');};$('choices').append(cancel)}
-  const close=document.createElement('button');close.textContent='Zavřít';close.onclick=closeContracts;$('choices').append(close);
+  addConversationExitButtons({allowLeave:false});
 }
-function closeContracts(){$('dialog').classList.remove('marketDialog');lifeMenu=null;activeShop=null;dialogOpen=false;$('dialog').classList.add('hidden');keys.clear()}
+function closeContracts(){
+  $('dialog').classList.remove('marketDialog');lifeMenu=null;activeShop=null;activeTransitStop=null;
+  if(policeKnowledgeState.active)policeKnowledgeState={passed:policeKnowledgeState.passed,active:false,index:0,score:policeKnowledgeState.score};
+  dialogOpen=false;$('dialog').classList.add('hidden');keys.clear();
+}
 function acceptContract(id){
   const item=substances.find(entry=>entry.id===id);
   if(!item||!complete||activeContract||activeDistrictJob||playerLevel()<item.level)return false;
@@ -1393,6 +1493,34 @@ function studyChoices(kind){
   if(educationState.highSchool){choiceInfo('Už máš hotovo. Teď běž na úřad práce pro lepší směny.');return;}
   const button=document.createElement('button');button.textContent=kind==='library'?'Studovat v knihovně · +2 body · +55 XP':'Studovat na fake internetu · +1 bod · +35 XP';button.onclick=()=>studyAt(kind);$('choices').append(button);
 }
+function openFakeMessages(){
+  if(!started||paused||dialogOpen)return false;
+  lifeMenu='phone';dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('choices').replaceChildren();
+  $('speaker').textContent='TELEFON · TEXTOVÝ INBOX';$('dialogTitle').textContent='Fake zprávy z města';
+  $('dialogText').textContent='Krátké textové zprávy jsou fikce uvnitř hry. Slouží jako atmosféra, rady a drobné náznaky aktivit ve městě.';
+  for(const message of fakeTextMessages)choiceInfo(message.time+' · '+message.from+': '+message.text);
+  addConversationExitButtons({allowLeave:false});
+  return true;
+}
+function fakeInternetChoices(){
+  choiceInfo('Textový fake internet · lokální zprávy, fórum, bazar, MHD a práce. Všechny weby jsou fikce uvnitř hry, ale chovají se jako městský web.');
+  if(!educationState.highSchool){
+    const study=document.createElement('button');study.textContent='Rychlé samostudium z otevřených zdrojů · +1 bod · +35 XP';study.onclick=()=>studyAt('internet');$('choices').append(study);
+  }else choiceInfo('Studium hotové. Internet teď slouží hlavně jako textový zdroj zpráv, práce a atmosféry.');
+  for(const page of fakeInternetPages){
+    const button=document.createElement('button');button.textContent=page.site+' · '+page.title;button.onclick=()=>openFakeInternetPage(page.id);$('choices').append(button);
+  }
+}
+function openFakeInternetPage(id){
+  const page=fakeInternetPages.find(item=>item.id===id);
+  if(!page||!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='internet'||distance(player,lifeServicePoint())>45)return false;
+  $('speaker').textContent='NETÍK · '+page.site;$('dialogTitle').textContent=page.title;$('dialogText').textContent=page.url+' · '+page.description;$('choices').replaceChildren();
+  for(const line of page.lines)choiceInfo(line);
+  if(!educationState.highSchool){const study=document.createElement('button');study.textContent='Zapsat poznámky do sešitu · +1 bod · +35 XP';study.onclick=()=>studyAt('internet');$('choices').append(study);}
+  const back=document.createElement('button');back.textContent='Zpět na fake internet';back.onclick=()=>{closeContracts();openLifeMenu('service');};$('choices').append(back);
+  addConversationExitButtons();
+  return true;
+}
 function betterJobButton(job){
   const button=document.createElement('button');
   button.textContent=job.title+' · LVL '+job.level+' · '+formatMoney(job.reward)+' · '+job.xp+' XP';
@@ -1442,11 +1570,12 @@ function openLifeMenu(mode) {
   else if (mode==='service'&&kind === 'police') policeChoices();
   else if (mode==='service'&&kind === 'school') schoolChoices();
   else if (mode==='service'&&kind === 'library') studyChoices('library');
-  else if (mode==='service'&&kind === 'internet') studyChoices('internet');
+  else if (mode==='service'&&kind === 'internet') fakeInternetChoices();
   else if (mode==='service'&&kind === 'office') officeChoices();
   else if (mode==='service'&&kind === 'property') propertyChoices();
   else if (mode !== 'phone') for (const item of lifeSystem.products) lifeButton(item.name + ' · ' + item.price + ' Kč · +' + item.health + ' zdraví', 'buy', item.id, player.cash < item.price);
   if (mode === 'phone') {
+    const fakeInbox=document.createElement('button');fakeInbox.textContent='Fake zprávy · textový inbox';fakeInbox.onclick=()=>{closeContracts();openFakeMessages();};$('choices').append(fakeInbox);
     for (const item of lifeState.messages.slice(-8)) {
       const message = document.createElement('p'); message.textContent = 'Den ' + item.day + ' · ' + item.from + ': ' + item.text; $('choices').append(message);
     }
@@ -1457,7 +1586,7 @@ function openLifeMenu(mode) {
     if (lifeSystem.has('mobileBank', lifeEntitlements)) bankChoices(true);
     for (const pack of Object.values(lifeSystem.packages)) { const info = document.createElement('p'); info.textContent = pack.name + ' · připravovaný balíček, zatím bez prodeje'; $('choices').append(info); }
   }
-  const close = document.createElement('button'); close.textContent = 'Zavřít'; close.onclick = closeContracts; $('choices').append(close);
+  addConversationExitButtons();
   return true;
 }
 function manualSave() { saveProgress(); notify('Hra uložena do localStorage.'); }

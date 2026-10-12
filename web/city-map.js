@@ -1,7 +1,7 @@
 'use strict';
 window.lifeCityMap = (() => {
   const source = window.streetLifeScene, mapCanvas = $('cityMapCanvas'), mapCtx = mapCanvas?.getContext?.('2d');
-  const state = { x: player.x, y: player.y, scale: .23, width: innerWidth, height: innerHeight, category: 'all', query: '', selected: null, destination: null, route: [], markers: [], dirty: true };
+  const state = { x: player.x, y: player.y, scale: .23, width: innerWidth, height: innerHeight, category: 'all', query: '', selected: null, destination: null, route: [], markers: [], dirty: true, dark: true };
   const categories = [
     ['all','Vše','#6d7680','●'], ['quest','Úkoly','#e89c28','!'], ['finance','Finance','#50886d','Kč'],
     ['dealer','Autosalony','#8061ad','A'], ['transit','MHD','#5282be','M'], ['service','Služby','#cc705d','S'], ['district','Čtvrti','#738277','Č']
@@ -90,40 +90,42 @@ window.lifeCityMap = (() => {
   function resize() { const bounds=mapCanvas.getBoundingClientRect?.()||{width:innerWidth,height:innerHeight};state.width=bounds.width||innerWidth;state.height=bounds.height||innerHeight;mapCanvas.width=Math.round(state.width*Math.min(devicePixelRatio||1,2));mapCanvas.height=Math.round(state.height*Math.min(devicePixelRatio||1,2));state.dirty=true; }
   function toggle(force) {
     const opening=typeof force==='boolean'?force:!mapExpanded;if(opening&&(!started||dialogOpen||paused))return false;
-    mapExpanded=opening;keys.clear();$('cityMapOverlay').classList.toggle('hidden',!mapExpanded);
+    mapExpanded=opening;keys.clear();$('cityMapOverlay').classList.toggle('hidden',!mapExpanded);applyTheme();
     if(mapExpanded){resize();const origin=position();state.x=origin.x;state.y=origin.y;clampCenter();refreshResults();updateDetails();render();$('cityMapClose').focus?.();}else $('cityMapButton')?.focus?.();return true;
   }
+  function applyTheme() {$('cityMapOverlay').classList.toggle('darkMap',state.dark);const button=$('cityMapTheme');if(button)button.textContent=state.dark?'☀':'☾';}
+  function toggleTheme(force) {state.dark=typeof force==='boolean'?force:!state.dark;applyTheme();state.dirty=true;render();return state.dark;}
   function path(points,color,width) {mapCtx.strokeStyle=color;mapCtx.lineWidth=width;mapCtx.lineCap='round';mapCtx.lineJoin='round';mapCtx.beginPath();points.forEach((point,index)=>{const p=toScreen(point);if(index)mapCtx.lineTo(p.x,p.y);else mapCtx.moveTo(p.x,p.y)});mapCtx.stroke();}
-  function label(text,x,y,color,font='12px Arial') {mapCtx.font=font;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.lineWidth=3;mapCtx.strokeStyle='#f7f5ef';mapCtx.strokeText(text,x,y);mapCtx.fillStyle=color;mapCtx.fillText(text,x,y);}
+  function label(text,x,y,color,font='12px Arial') {mapCtx.font=font;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.lineWidth=3;mapCtx.strokeStyle=state.dark?'#07101b':'#f7f5ef';mapCtx.strokeText(text,x,y);mapCtx.fillStyle=color;mapCtx.fillText(text,x,y);}
   function render() {
     if(!mapCtx||!mapExpanded||!state.dirty)return;state.dirty=false;
-    const ratio=Math.min(devicePixelRatio||1,2);mapCtx.setTransform(ratio,0,0,ratio,0,0);mapCtx.fillStyle='#f2f0e9';mapCtx.fillRect(0,0,state.width,state.height);
+    const ratio=Math.min(devicePixelRatio||1,2),dark=state.dark;mapCtx.setTransform(ratio,0,0,ratio,0,0);mapCtx.fillStyle=dark?'#07101b':'#f2f0e9';mapCtx.fillRect(0,0,state.width,state.height);
     const top=toWorld({x:-100,y:-100}),bottom=toWorld({x:state.width+100,y:state.height+100}),s=state.scale;
     const visible = area => area.x+block>=top.x&&area.y+block>=top.y&&area.x<=bottom.x&&area.y<=bottom.y;
     for(const area of cityBlocks.filter(visible)){
-      const p=toScreen({x:area.x+72,y:area.y+72});mapCtx.fillStyle=area.type==='park'?'#c9dfb7':area.type==='villa'?'#e0e9d3':area.type==='industrial'?'#e4ddd1':area.type==='plaza'?'#e1e5df':'#e9e5de';mapCtx.fillRect(p.x,p.y,270*s,270*s);
+      const p=toScreen({x:area.x+72,y:area.y+72});mapCtx.fillStyle=dark?(area.type==='park'?'#173321':area.type==='villa'?'#17261c':area.type==='industrial'?'#20242c':area.type==='plaza'?'#172437':'#111a22'):(area.type==='park'?'#c9dfb7':area.type==='villa'?'#e0e9d3':area.type==='industrial'?'#e4ddd1':area.type==='plaza'?'#e1e5df':'#e9e5de');mapCtx.fillRect(p.x,p.y,270*s,270*s);
     }
     // Roads are drawn from the actual game grid, so navigation follows the same streets.
     const startCol=Math.max(minCell,Math.floor(top.x/block)),endCol=Math.min(gridSize-1,Math.ceil(bottom.x/block)),startRow=Math.max(minCell,Math.floor(top.y/block)),endRow=Math.min(gridSize-1,Math.ceil(bottom.y/block));
-    for(const [color,width]of [['#d8d5cf',Math.max(3,48*s)],['#fffef9',Math.max(2,39*s)]]){
+    for(const [color,width]of [[dark?'#152131':'#d8d5cf',Math.max(3,48*s)],[dark?'#243545':'#fffef9',Math.max(2,39*s)]]){
       for(let col=startCol;col<=endCol;col++)path([{x:col*block+35,y:worldMin},{x:col*block+35,y:size}],color,width);
       for(let row=startRow;row<=endRow;row++)path([{x:worldMin,y:row*block+35},{x:size,y:row*block+35}],color,width);
     }
-    for(let row=startRow;row<=endRow;row++)if(row%4===0)path([{x:worldMin,y:row*block+35},{x:size,y:row*block+35}],'#f6d998',Math.max(1,17*s));
-    if(s>.08)for(const b of buildings){if(b.x+b.w<top.x||b.y+b.h<top.y||b.x>bottom.x||b.y>bottom.y)continue;const p=toScreen(b);mapCtx.fillStyle=b.type==='villa'?'#d3d2bf':'#d8d4cc';mapCtx.fillRect(p.x,p.y,b.w*s,b.h*s);}
-    for(const point of pois().filter(point=>point.category==='district')){const p=toScreen(point);if(p.x<0||p.y<0||p.x>state.width||p.y>state.height)continue;label(point.name,p.x,p.y,'#6e7970',s>.06?'bold 16px Arial':'bold 11px Arial');}
-    if(s>.19){const names=['SEIFERTOVA','BOŘIVOJOVA','HUSITSKÁ','TÁBORITSKÁ'];for(let row=startRow;row<=endRow;row++){const y=row*block+35,x=state.x;if(row%2)continue;const p=toScreen({x,y}),district=districtAt(x,y);const name=district.name==='OŘECHOVKA'?'NA OŘECHOVCE':district.name==='HANSPAULKA'?'NA HANSPAULCE':district.name==='DEJVICE'?'DEJVICKÁ':district.name==='BUBENEČ'?'ČS. ARMÁDY':names[Math.abs(row)%names.length];label(name,p.x+90,p.y,'#979489','10px Arial');}}
-    if(state.route.length){path(state.route,'#fff',8);path(state.route,'#4285df',5);}
+    for(let row=startRow;row<=endRow;row++)if(row%4===0)path([{x:worldMin,y:row*block+35},{x:size,y:row*block+35}],dark?'#9b7540':'#f6d998',Math.max(1,17*s));
+    if(s>.08)for(const b of buildings){if(b.x+b.w<top.x||b.y+b.h<top.y||b.x>bottom.x||b.y>bottom.y)continue;const p=toScreen(b);mapCtx.fillStyle=dark?(b.type==='villa'?'#324331':'#26313b'):(b.type==='villa'?'#d3d2bf':'#d8d4cc');mapCtx.fillRect(p.x,p.y,b.w*s,b.h*s);}
+    for(const point of pois().filter(point=>point.category==='district')){const p=toScreen(point);if(p.x<0||p.y<0||p.x>state.width||p.y>state.height)continue;label(point.name,p.x,p.y,dark?'#90a797':'#6e7970',s>.06?'bold 16px Arial':'bold 11px Arial');}
+    if(s>.19){const names=['SEIFERTOVA','BOŘIVOJOVA','HUSITSKÁ','TÁBORITSKÁ'];for(let row=startRow;row<=endRow;row++){const y=row*block+35,x=state.x;if(row%2)continue;const p=toScreen({x,y}),district=districtAt(x,y);const name=district.name==='OŘECHOVKA'?'NA OŘECHOVCE':district.name==='HANSPAULKA'?'NA HANSPAULCE':district.name==='DEJVICE'?'DEJVICKÁ':district.name==='BUBENEČ'?'ČS. ARMÁDY':names[Math.abs(row)%names.length];label(name,p.x+90,p.y,dark?'#9babaa':'#979489','10px Arial');}}
+    if(state.route.length){path(state.route,dark?'#dff6ff':'#fff',8);path(state.route,dark?'#61b5ff':'#4285df',5);}
     const collisions=[],markers=[];
     for(const point of find().filter(point=>point.category!=='district').sort((a,b)=>Number(b.id===state.selected||b.active)-Number(a.id===state.selected||a.active))){
       const p=toScreen(point),priority=point.id===state.selected||point.active;if(p.x<10||p.y<10||p.x>state.width-10||p.y>state.height-10)continue;
       if(!priority&&collisions.some(previous=>Math.hypot(previous.x-p.x,previous.y-p.y)<(s>.12?30:23)))continue;
-      const category=categories.find(item=>item[0]===point.category),r=priority?14:10;mapCtx.beginPath();mapCtx.moveTo(p.x,p.y+12);mapCtx.bezierCurveTo(p.x-22,p.y-9,p.x-8,p.y-28,p.x,p.y-28);mapCtx.bezierCurveTo(p.x+8,p.y-28,p.x+22,p.y-9,p.x,p.y+12);mapCtx.fillStyle=priority?'#d25b38':category[2];mapCtx.fill();mapCtx.strokeStyle='#fff';mapCtx.lineWidth=2;mapCtx.stroke();
+      const category=categories.find(item=>item[0]===point.category),r=priority?14:10;mapCtx.beginPath();mapCtx.moveTo(p.x,p.y+12);mapCtx.bezierCurveTo(p.x-22,p.y-9,p.x-8,p.y-28,p.x,p.y-28);mapCtx.bezierCurveTo(p.x+8,p.y-28,p.x+22,p.y-9,p.x,p.y+12);mapCtx.fillStyle=priority?'#d25b38':category[2];mapCtx.fill();mapCtx.strokeStyle=dark?'#07101b':'#fff';mapCtx.lineWidth=2;mapCtx.stroke();
       mapCtx.fillStyle='#fff';mapCtx.font=category[3]==='Kč'?'bold 8px Arial':'bold 11px Arial';mapCtx.textAlign='center';mapCtx.fillText(point.active?'!':category[3],p.x,p.y-12);
       if(priority||s>.25)label(point.name,p.x,p.y+25,priority?'#b74328':'#626c73','bold 10px Arial');collisions.push(p);markers.push({id:point.id,x:p.x,y:p.y-9,r:r+10});
     }
     state.markers=markers;
-    const me=toScreen(position());mapCtx.beginPath();mapCtx.arc(me.x,me.y,19,0,Math.PI*2);mapCtx.fillStyle='#4285df28';mapCtx.fill();mapCtx.beginPath();mapCtx.arc(me.x,me.y,7,0,Math.PI*2);mapCtx.fillStyle='#4285df';mapCtx.fill();mapCtx.strokeStyle='#fff';mapCtx.lineWidth=3;mapCtx.stroke();
+    const me=toScreen(position());mapCtx.beginPath();mapCtx.arc(me.x,me.y,19,0,Math.PI*2);mapCtx.fillStyle='#4285df28';mapCtx.fill();mapCtx.beginPath();mapCtx.arc(me.x,me.y,7,0,Math.PI*2);mapCtx.fillStyle='#4285df';mapCtx.fill();mapCtx.strokeStyle=dark?'#e7f1f7':'#fff';mapCtx.lineWidth=3;mapCtx.stroke();
     const meters=[50,100,200,500,1000,2000,5000].find(value=>value*s>=60)||5000;$('cityMapScale').textContent=meters>=1000?meters/1000+' km':meters+' m';$('cityMapScale').style.width=Math.min(180,meters*s)+'px';
   }
   let drag=null,pointers=new Map(),pinch=null,lastOrigin=null,lastTarget=null,lastRefresh=-Infinity;
@@ -136,6 +138,7 @@ window.lifeCityMap = (() => {
   $('cityMapSearch').oninput=event=>{state.query=event.target.value;refreshResults();};
   $('cityMapSearch').onkeydown=event=>{if(event.key==='Escape'){$('cityMapSearch').blur?.();toggle(false);}if(event.key==='Enter'){event.preventDefault();const first=find()[0];if(first)selectPlace(first.id);}};
   $('cityMapClose').onclick=()=>toggle(false);$('cityMapButton').onclick=()=>toggle();
+  $('cityMapTheme').onclick=()=>toggleTheme();
   $('cityMapLocate').onclick=()=>{const origin=position();state.x=origin.x;state.y=origin.y;state.scale=Math.max(state.scale,.23);clampCenter();};
   $('cityMapZoomIn').onclick=()=>zoomAt(1.4);$('cityMapZoomOut').onclick=()=>zoomAt(1/1.4);
   $('cityMapFit').onclick=()=>{state.x=(worldMin+size)/2;state.y=(worldMin+size)/2;state.scale=Math.min(state.width,state.height)*.85/worldSpan;clampCenter();};
@@ -148,6 +151,7 @@ window.lifeCityMap = (() => {
     if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
   });
   addEventListener('resize',()=>{if(mapExpanded)resize();});
+  applyTheme();
   try{const saved=localStorage.getItem('street-life-navigation-v1');if(saved&&pois().some(point=>point.id===saved)){state.destination=saved;state.selected=saved;state.route=buildRoute(position(),pois().find(point=>point.id===saved));}}catch{}
   function tick(){
     if(!mapExpanded&&!state.destination)return;render();if(time-lastRefresh<.3)return;lastRefresh=time;
@@ -157,5 +161,5 @@ window.lifeCityMap = (() => {
     render();
   }
   function drawRadarRoute(context,mapScale){if(!state.route.length)return;context.save();context.strokeStyle='#61b5ff';context.lineWidth=2;context.beginPath();state.route.forEach((point,index)=>{if(index)context.lineTo(point.x*mapScale,point.y*mapScale);else context.moveTo(point.x*mapScale,point.y*mapScale)});context.stroke();context.restore();}
-  return {state,pois,find,normalize,toScreen,toWorld,zoomAt,buildRoute,routeLength,routeTo,selectPlace,clearRoute,toggle,render,tick,drawRadarRoute};
+  return {state,pois,find,normalize,toScreen,toWorld,zoomAt,buildRoute,routeLength,routeTo,selectPlace,clearRoute,toggle,toggleTheme,render,tick,drawRadarRoute};
 })();
