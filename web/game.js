@@ -104,7 +104,7 @@ let seed=47;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/21474836
 const cityBlocks=[];
 const civicPlaces = new Map([
   ['1:0', 'UBYTOVNA'], ['3:3', 'BANKA'], ['1:3', 'ZÁKLADNÍ ŠKOLA'], ['3:1', 'ÚŘAD PRÁCE'], ['2:2', 'POLICIE ČR'],
-  ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY']
+  ['2:4', 'HASIČI'], ['4:2', 'NEMOCNICE'], ['3:4', 'OBCHODNÍ CENTRUM'], ['18:10', 'GYMNÁZIUM VINOHRADY'], ['20:13', 'CENTRUM VINOHRADY']
 ]);
 const parkingLots = [{col:4,row:1},{col:3,row:2},{col:11,row:18}];
 function districtAt(x,y){
@@ -173,6 +173,128 @@ for(const line of transitLines)for(let vehicle=0;vehicle<2;vehicle++){
 }
 for(let i=0;i<16;i++)people.push({x:867+(i%4)*400,y:835+Math.floor(i/4)*400,axis:i%2===0,dir:1,color:i%2?'#283d67':'#253f3d',role:i%2?'police':'warden'});
 for(let i=0;i<6;i++)cars.push({x:835+(i%3)*400,y:835+Math.floor(i/3)*400,angle:0,axis:true,speed:60,color:'#e7eef2',parked:false,police:true});
+const trafficLights=[];
+for(let row=0;row<gridSize;row++)for(let col=0;col<gridSize;col++){
+  if((row+col)%2!==0)continue;
+  trafficLights.push({row,col,x:col*block+35,y:row*block+35,offset:(row*3.7+col*5.1)%20});
+}
+const trafficLightMap=new Map(trafficLights.map(light=>[light.row+':'+light.col,light]));
+function trafficState(light,clock=time){
+  const phase=((clock+light.offset)%20+20)%20;
+  const allRed=(phase>=8&&phase<10)||phase>=18;
+  return {phase,eastWest:!allRed&&phase<8?'green':'red',northSouth:!allRed&&phase>=10&&phase<18?'green':'red'};
+}
+function nextTrafficLight(car){
+  if(car.emergency||car.transit||car.parked||car.crashed)return null;
+  if(car.axis){
+    const row=Math.round((car.y-35)/block),col=Math.floor((car.x-35)/block)+1,light=trafficLightMap.get(row+':'+col);
+    if(!light)return null;const dist=light.x-car.x;return dist>8&&dist<95?{light,dist,lane:'eastWest'}:null;
+  }
+  const col=Math.round((car.x-35)/block),row=Math.floor((car.y-35)/block)+1,light=trafficLightMap.get(row+':'+col);
+  if(!light)return null;const dist=light.y-car.y;return dist>8&&dist<95?{light,dist,lane:'northSouth'}:null;
+}
+function laneDistanceAhead(car,other){
+  if(!other||other===car||other.transit||other.emergency)return Infinity;
+  if(car.axis!==other.axis)return Infinity;
+  if(car.axis&&Math.abs(car.y-other.y)<18){const dist=other.x-car.x;return dist>0?dist:Infinity;}
+  if(!car.axis&&Math.abs(car.x-other.x)<18){const dist=other.y-car.y;return dist>0?dist:Infinity;}
+  return Infinity;
+}
+function trafficBlocker(car){
+  for(const other of cars){
+    if(other===car||other.transit||other.parked&&!other.crashed)continue;
+    if(laneDistanceAhead(car,other)<72)return other;
+  }
+  const emergency=emergencyVehicles.find(vehicle=>vehicle.duty==='respond'&&distance(vehicle,car)<145);
+  return emergency||null;
+}
+function vehicleAt(car,x,y,range=32){
+  return cars.find(other=>other!==car&&!other.transit&&(!other.parked||other.crashed||other.emergency)&&Math.hypot(other.x-x,other.y-y)<range)||null;
+}
+const incidents=[],emergencyVehicles=[];
+let incidentId=0;
+function stationDoor(name){
+  const building=buildings.find(item=>item.name===name);
+  if(!building)return {x:255,y:350};
+  const door=doorFor(building);
+  return {x:door.x,y:door.y};
+}
+function addEmergencyVehicle(service,label,stationName,color,index=0){
+  const home=stationDoor(stationName),vehicle={x:home.x+index*18,y:home.y+index*10,home:{x:home.x+index*18,y:home.y+index*10},angle:0,axis:true,speed:service==='fire'?135:service==='ambulance'?155:145,color,parked:false,police:service==='police',emergency:true,service,label,duty:'idle',targetIncident:null,trafficVelocity:0};
+  emergencyVehicles.push(vehicle);cars.push(vehicle);return vehicle;
+}
+function addStationNpc(role,stationName,color,index=0){
+  const home=stationDoor(stationName);
+  people.push({x:home.x-24+index*16,y:home.y+22+index*8,axis:true,dir:1,color,role,stationary:true});
+}
+function spawnEmergencyServices(){
+  addEmergencyVehicle('police','Policie zásah','POLICIE ČR','#e7eef2');
+  addEmergencyVehicle('police','Dopravní policie','POLICIE ČR','#dce8ef',1);
+  addEmergencyVehicle('fire','Hasiči','HASIČI','#d94a2e');
+  addEmergencyVehicle('ambulance','Sanitka','NEMOCNICE','#f3f7f1');
+  addStationNpc('police','POLICIE ČR','#253f6e');
+  addStationNpc('firefighter','HASIČI','#8c392f');
+  addStationNpc('paramedic','NEMOCNICE','#e8efe9');
+}
+function dispatchEmergency(incident){
+  incident.assigned??={};
+  for(const service of ['police','fire','ambulance']){
+    if(incident.assigned[service])continue;
+    const vehicle=emergencyVehicles.find(item=>item.service===service&&item.duty==='idle');
+    if(!vehicle)continue;
+    vehicle.duty='respond';vehicle.targetIncident=incident.id;vehicle.trafficVelocity=vehicle.speed;
+    incident.assigned[service]=vehicle;
+  }
+}
+function createIncident(x,y,vehicles=[],cause='traffic'){
+  const nearby=incidents.find(item=>!item.resolved&&distance(item,{x,y})<120);
+  if(nearby)return nearby;
+  const incident={id:++incidentId,x,y,age:0,cause,vehicles:vehicles.filter(Boolean),assigned:{},arrived:{},crew:[],resolved:false,resolveTimer:0};
+  for(const car of incident.vehicles){
+    car.crashed=true;car.parked=true;car.velocity=0;car.trafficVelocity=0;car.crashCooldown=2.5;
+    if(car===player.car){player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
+  }
+  incidents.push(incident);dispatchEmergency(incident);
+  if(distance(player,{x,y})<450)notify('Nehoda hlášena · jedou hasiči, policie a sanitka');
+  saveProgress();updateHud();return incident;
+}
+function ensureIncidentCrew(incident,service){
+  if(incident.crew.some(member=>member.service===service))return;
+  const color=service==='police'?'#1f3f78':service==='fire'?'#983c32':'#e8efe9';
+  incident.crew.push({service,x:incident.x+(incident.crew.length-1)*18,y:incident.y+34+incident.crew.length*8,color});
+}
+function finishIncident(incident){
+  incident.resolved=true;
+  for(const car of incident.vehicles){car.crashed=false;car.parked=true;car.speed=car.speed||60;car.trafficVelocity=0;}
+  for(const vehicle of Object.values(incident.assigned)){vehicle.duty='return';vehicle.targetIncident=null;vehicle.trafficVelocity=vehicle.speed;}
+  if(distance(player,incident)<450)notify('Zásah ukončen · nehoda odklizena');
+}
+function moveEmergencyVehicle(vehicle,target,dt){
+  const angle=Math.atan2(target.y-vehicle.y,target.x-vehicle.x),speed=vehicle.speed*(vehicle.duty==='respond'?1.15:.75);
+  vehicle.angle=angle;vehicle.x+=Math.cos(angle)*speed*dt;vehicle.y+=Math.sin(angle)*speed*dt;vehicle.trafficVelocity=speed;
+}
+function updateEmergencyServices(dt){
+  for(const incident of incidents){
+    if(incident.resolved){incident.resolveTimer+=dt;continue;}
+    incident.age+=dt;dispatchEmergency(incident);
+    for(const [service,vehicle] of Object.entries(incident.assigned)){
+      if(vehicle.duty!=='respond')continue;
+      if(distance(vehicle,incident)>45)moveEmergencyVehicle(vehicle,incident,dt);
+      else{vehicle.duty='scene';vehicle.trafficVelocity=0;incident.arrived[service]=true;ensureIncidentCrew(incident,service);}
+    }
+    if(['police','fire','ambulance'].every(service=>incident.arrived[service])||incident.age>45){
+      incident.resolveTimer+=dt;
+      if(incident.resolveTimer>8)finishIncident(incident);
+    }
+  }
+  for(const vehicle of emergencyVehicles){
+    if(vehicle.duty==='return'){
+      if(distance(vehicle,vehicle.home)>35)moveEmergencyVehicle(vehicle,vehicle.home,dt);
+      else{vehicle.x=vehicle.home.x;vehicle.y=vehicle.home.y;vehicle.duty='idle';vehicle.trafficVelocity=0;vehicle.angle=0;}
+    }
+  }
+  for(let i=incidents.length-1;i>=0;i--)if(incidents[i].resolved&&incidents[i].resolveTimer>10)incidents.splice(i,1);
+}
 function updateTransitVehicle(car,dt){
   const line=transitLines.find(item=>item.id===car.lineId);
   if(car.dwell>0){car.dwell=Math.max(0,car.dwell-dt);return;}
@@ -238,6 +360,8 @@ const importantNpcConfigs = [
   { name: 'BANKA', label: 'Bankéř', short: 'BANK', color: '#4fb9ff' },
   { name: 'ÚŘAD PRÁCE', label: 'Úředník', short: 'OSVČ', color: '#ff77c8' },
   { name: 'POLICIE ČR', label: 'Policie', short: 'PČR', color: '#68a0ff' },
+  { name: 'HASIČI', label: 'Hasiči', short: 'HZS', color: '#ff5c3f' },
+  { name: 'NEMOCNICE', label: 'Sanitka', short: 'EMS', color: '#f1f7f2' },
   { name: 'UBYTOVNA', label: 'Správce ubytovny', short: 'POSTEL', color: '#ffd166' },
   { name: 'OBCHODNÍ CENTRUM', label: 'Obchody', short: 'SHOP', color: '#72e2d1' },
   { name: 'CENTRUM VINOHRADY', label: 'Obchody', short: 'SHOP', color: '#72e2d1' }
@@ -257,6 +381,7 @@ function importantNpcMarkers(includeTarget = false) {
   return markers;
 }
 function nearestDoor(){let nearest=null,best=42;for(const b of nearbyBuildings(player.x,player.y,100)){const door=doorFor(b),d=distance(player,door);if(d<best&&!collision(door.x,door.y,10)){nearest=b;best=d}}return nearest}
+spawnEmergencyServices();
 function interiorFurniture(){if(!interior)return [];return [{x:interior.width*.18,y:interior.depth*.45,w:interior.width*.22,h:interior.depth*.12},{x:interior.width*.16,y:interior.depth*.7,w:interior.width*.25,h:interior.depth*.12}]}
 function interiorCollision(x,y,r){return x<r+4||y<r+4||x>interior.width-r-4||y>interior.depth-r-4||interiorFurniture().some(item=>x+r>item.x&&x-r<item.x+item.w&&y+r>item.y&&y-r<item.y+item.h)}
 function enterBuilding(b){if(player.car){notify('Nejdřív vystup z auta.');return;}interior={building:b,width:b.w,depth:b.h,floor:0,maxFloor:Math.max(1,Math.min(5,Math.floor(b.height/6))),outside:{x:player.x,y:player.y,angle:player.angle}};player.x=interior.width/2;player.y=interior.depth-22;camera.x=player.x;camera.y=player.y;updateHud();notify('Vstup: '+(b.name||'činžovní dům')+' · E u schodiště / dveří');}
@@ -310,7 +435,7 @@ function useInterior(){if(isLifeService() && distance(player, lifeServicePoint()
 function updateInteriorHud(){const points=interiorPoints();$('missionTitle').textContent=interior.building.name||'Činžovní dům';$('missionText').textContent='Průřez budovou · '+(interior.floor?'patro '+interior.floor:'přízemí')+' / '+interior.maxFloor+'. U schodiště stiskni E.';$('objective').textContent=interior.floor?'Schodiště ↑ / ↓':'Schodiště ↑ · východ ↓';$('distance').textContent='';$('location').firstChild.textContent='INTERIÉR · '+(interior.floor?'PATRO '+interior.floor:'PŘÍZEMÍ')+' ';$('prompt').style.display='block';$('prompt').textContent=distance(player,points.up)<Math.min(18,interior.depth*.075)?'[E] O patro výš':distance(player,points.down)<Math.min(18,interior.depth*.075)?'[E] O patro níž':interior.floor===0&&distance(player,points.exit)<25?'[E] Vyjít na ulici':'E · interakce u schodiště / dveří';if(isButcherRoom()){$('missionText').textContent='Karel za pultem · E pro nabídku jídla a ceny. Jídlo doplní zdraví, platíš hotově.';if(distance(player,butcherPoint())<=45)$('prompt').textContent='[E] Karel · nakoupit';}}
 function interact(){if(!started||paused||dialogOpen)return;if(interior){useInterior();return;}const stop=nearestTransitStop();if(stop){showTransitMenu(stop);return;}if(targetAvailable()&&distance(player,mission())<65){if(activeContract)completeContract();else showDialog();return;}const door=nearestDoor();if(door){enterBuilding(door);return;}notify('Přibliž se ke kontaktu nebo k fialově osvětlenému vstupu.');}
 
-function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
+function enterCar(){if(!started||paused||dialogOpen)return;if(interior){notify('Auto je venku na ulici.');return;}if(player.car){const car=player.car;for(const offset of [Math.PI/2,-Math.PI/2,Math.PI]){const x=car.x+Math.cos(car.angle+offset)*38,y=car.y+Math.sin(car.angle+offset)*38;if(!collision(x,y,10)){player.x=x;player.y=y;player.car=null;car.velocity=0;car.parked=true;notify('Vystoupil jsi.');return}}notify('Není tu prostor pro vystoupení.');return;}const nearest=cars.filter(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed).sort((a,b)=>distance(player,a)-distance(player,b))[0];if(nearest&&distance(player,nearest)<65){player.car=nearest;nearest.parked=true;nearest.velocity=0;player.x=nearest.x;player.y=nearest.y;player.angle=nearest.angle;notify('W plyn · S brzda / zpátečka · A/D zatáčení · mezerník ruční brzda')}else notify('Přibliž se k autu a stiskni F.')}
 function togglePause(){if(!started||dialogOpen)return;paused=!paused;$('menu').classList.toggle('hidden',!paused);$('start').innerHTML='POKRAČOVAT <span>↗</span>';keys.clear()}
 $('start').onclick=()=>{started=true;paused=false;$('menu').classList.add('hidden');notify('První noc · Najdi Viktora před klubem.');};$('pause').onclick=togglePause;
 addEventListener('keydown',e=>{if(e.target?.matches?.('input, textarea, select, [contenteditable="true"]'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','shift'].includes(k))e.preventDefault();if(e.repeat)return;keys.add(k);if(e.target?.matches?.('input, textarea, select')){keys.delete(k);return;}if(k==='p')openLifeMenu('phone');if(k==='e')interact();if(k==='f')enterCar();if(k==='m')mapExpanded=!mapExpanded;if(k==='j')openContracts();if(k==='k')manualSave();if(k==='escape'){if(dialogOpen)closeContracts();else togglePause()}});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>{keys.clear();if(started&&!paused&&!dialogOpen)togglePause()});
@@ -356,23 +481,46 @@ function updateDriving(car,input,dt){
     if(!carCollision(car.x,car.y,angle))car.angle=angle;
     const nx=car.x+Math.cos(car.angle)*car.velocity*step;
     const ny=car.y+Math.sin(car.angle)*car.velocity*step;
-    if(!carCollision(nx,ny,car.angle)){
+    const hit=vehicleAt(car,nx,ny,34);
+    if(!hit&&!carCollision(nx,ny,car.angle)){
       car.x=nx;car.y=ny;
     }else{
       if(Math.abs(car.velocity)>80&&car.crashCooldown===0){
-        player.cash=Math.max(0,player.cash-50);
-        player.heat=Math.min(5,player.heat+.3);
+        if(hit)createIncident((car.x+hit.x)/2,(car.y+hit.y)/2,[car,hit],'player-crash');
+        player.cash=Math.max(0,player.cash-(hit?120:50));
+        player.heat=Math.min(5,player.heat+(hit&&hit.emergency ? .5 : .3));
         car.crashCooldown=1.5;
-        notify('Nehoda · −50 Kč');saveProgress();updateHud();
+        notify(hit?'Dopravní nehoda · volá se IZS':'Nehoda · −50 Kč');saveProgress();updateHud();
       }
       car.velocity=0;
     }
   }
 }
+function updateTrafficCar(car,dt){
+  if(car.crashed)return;
+  car.trafficVelocity??=car.speed||0;
+  let desired=car.speed||0;
+  const light=nextTrafficLight(car);
+  if(light&&trafficState(light.light)[light.lane]==='red')desired=0;
+  if(trafficBlocker(car))desired=0;
+  const accel=desired>car.trafficVelocity?70:240;
+  if(desired>car.trafficVelocity)car.trafficVelocity=Math.min(desired,car.trafficVelocity+accel*dt);
+  else car.trafficVelocity=Math.max(desired,car.trafficVelocity-accel*dt);
+  const speed=car.trafficVelocity,angle=car.axis?0:Math.PI/2,nx=(car.x+Math.cos(angle)*speed*dt+size)%size,ny=(car.y+Math.sin(angle)*speed*dt+size)%size;
+  car.angle=angle;
+  const hit=vehicleAt(car,nx,ny,30);
+  if(hit){
+    if(speed>45||((hit.trafficVelocity||hit.velocity||hit.speed||0)>45))createIncident((car.x+hit.x)/2,(car.y+hit.y)/2,[car,hit],'traffic-crash');
+    car.trafficVelocity=0;return;
+  }
+  if(!carCollision(nx,ny,angle)){car.x=nx;car.y=ny;}
+  else car.trafficVelocity=0;
+}
 
 function update(dt){time+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}if(!started||paused||dialogOpen)return;lifeState.elapsed+=dt;lifeSaveElapsed+=dt;if(lifeSaveElapsed>=10){lifeSaveElapsed=0;saveProgress();}if(lifeState.elapsed>=300){lifeState.elapsed-=300;lifeSystem.nextDay(lifeState);saveProgress();notify('Den '+lifeState.day+' · zkontroluj účty v telefonu (P)');}const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright');if(player.car){const c=player.car;updateDriving(c,{up,down,left,right,brake:keys.has(' ')},dt);player.x=c.x;player.y=c.y;player.angle=c.angle}else{let dx=right-left,dy=down-up,len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;const speed=keys.has('shift')?155:90;if(!collision(player.x+dx*speed*dt,player.y,10))player.x+=dx*speed*dt;if(!collision(player.x,player.y+dy*speed*dt,10))player.y+=dy*speed*dt;player.angle=Math.atan2(dy,dx);player.step+=dt*12}}
-for(const c of cars){if(interior||c===player.car||c.parked)continue;if(c.transit){updateTransitVehicle(c,dt);continue;}if(c.police&&player.heat>.5&&distance(c,player)<650){const angle=Math.atan2(player.y-c.y,player.x-c.x);c.angle=angle;const nx=c.x+Math.cos(angle)*105*dt,ny=c.y+Math.sin(angle)*105*dt;if(!collision(nx,ny,21)){c.x=nx;c.y=ny}if(distance(c,player)<38){player.cash=Math.max(0,player.cash-400);player.heat=0;player.x=255;player.y=350;if(player.car){player.car.x=275;player.car.y=350;player.car.velocity=0;player.car=null}const lostCargo=Boolean(activeContract);activeContract=null;notify(lostCargo?'Zadržení · zásilka zabavena · pokuta 400 Kč':'Zadržení · pokuta 400 Kč · návrat do čtvrti');saveProgress();updateHud()}}else{if(c.axis)c.x=(c.x+c.speed*dt)%size;else c.y=(c.y+c.speed*dt)%size;c.angle=c.axis?0:Math.PI/2}}
-for(const p of people){if(p.role&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=(p.x+p.dir*18*dt+size)%size;else p.y=(p.y+p.dir*18*dt+size)%size}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);syncPragueClock();$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;updateWeatherHud();$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}}}
+updateEmergencyServices(dt);
+for(const c of cars){if(interior||c===player.car||c.parked)continue;if(c.transit){updateTransitVehicle(c,dt);continue;}if(c.emergency)continue;if(c.police&&player.heat>.5&&distance(c,player)<650){const angle=Math.atan2(player.y-c.y,player.x-c.x);c.angle=angle;const nx=c.x+Math.cos(angle)*105*dt,ny=c.y+Math.sin(angle)*105*dt;if(!collision(nx,ny,21)&&!vehicleAt(c,nx,ny,34)){c.x=nx;c.y=ny}if(distance(c,player)<38){player.cash=Math.max(0,player.cash-400);player.heat=0;player.x=255;player.y=350;if(player.car){player.car.x=275;player.car.y=350;player.car.velocity=0;player.car=null}const lostCargo=Boolean(activeContract);activeContract=null;notify(lostCargo?'Zadržení · zásilka zabavena · pokuta 400 Kč':'Zadržení · pokuta 400 Kč · návrat do čtvrti');saveProgress();updateHud()}}else updateTrafficCar(c,dt)}
+for(const p of people){if(p.stationary)continue;if(['police','warden'].includes(p.role)&&!interior&&player.heat>1&&distance(p,player)<180&&!player.car){const dx=player.x-p.x,dy=player.y-p.y,len=Math.hypot(dx,dy);if(len>0){const nx=p.x+dx/len*42*dt,ny=p.y+dy/len*42*dt;if(!collision(nx,ny,10)){p.x=nx;p.y=ny;}}if(len<20){player.cash=Math.max(0,player.cash-250);player.heat=0;activeContract=null;notify((p.role==='warden'?'Strážník':'Policista')+' · kontrola a pokuta 250 Kč');saveProgress();updateHud();}continue;}if(p.axis)p.x=(p.x+p.dir*18*dt+size)%size;else p.y=(p.y+p.dir*18*dt+size)%size}if(player.heat>0){player.heat=Math.max(0,player.heat-dt*.025);$('heat').textContent='★'.repeat(Math.ceil(player.heat))+'☆'.repeat(5-Math.ceil(player.heat))}camera.x+=(player.x-camera.x)*Math.min(1,dt*5);camera.y+=(player.y-camera.y)*Math.min(1,dt*5);const currentDistrict=districtAt(player.x,player.y);syncPragueClock();$('location').firstChild.textContent=currentDistrict.name+' ';$('location').style.color=currentDistrict.color;updateWeatherHud();$('distance').textContent=targetAvailable()?Math.round(distance(player,mission()))+' m':'';const near=targetAvailable()&&distance(player,mission())<65;const nearCar=cars.some(c=>!c.police&&!c.transit&&!c.emergency&&!c.crashed&&distance(c,player)<60);$('prompt').style.display=near||nearCar||player.car?'block':'none';$('prompt').textContent=near?'[E] Promluvit · '+mission().speaker:player.car?'[F] Vystoupit z auta':'[F] Nastoupit do auta';if(interior)updateInteriorHud();else{const door=nearestDoor();if(door&&!near){$('prompt').style.display='block';$('prompt').textContent='[E] Vstoupit · '+(door.name||'činžovní dům')}const stop=nearestTransitStop();if(stop){$('prompt').style.display='block';$('prompt').textContent='[E] MHD · '+stop.name}}}
 function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill()}
 function rounded(x,y,width,height,radius,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,width,height,radius);ctx.fill()}
 function visible(x,y,margin=250){const scale=(w<800?1.04:1.32)*viewZoom,cx=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
@@ -453,8 +601,11 @@ function drawCar(c){
   const beam=ctx.createLinearGradient(20,0,150,0);beam.addColorStop(0,'#fff5d159');beam.addColorStop(.35,'#ffedb71b');beam.addColorStop(1,'#fff6d000');
   for(const yy of [-7,7])polygon([[20,yy-3],[150,yy-30],[165,yy+28],[20,yy+3]],beam);
   rounded(-19,-15,11,6,2,'#080d13');rounded(10,-15,11,6,2,'#080d13');rounded(-19,9,11,6,2,'#080d13');rounded(10,9,11,6,2,'#080d13');
-  const paint=ctx.createLinearGradient(0,-12,0,12);paint.addColorStop(0,'#c2ced0');paint.addColorStop(.15,c.police?'#f2f4f2':c.color);paint.addColorStop(.65,c.police?'#99b3c1':c.color);paint.addColorStop(1,'#182c3a');
+  const bodyColor=c.service==='fire'?'#d94a2e':c.service==='ambulance'?'#f3f7f1':c.police?'#f2f4f2':c.color,bodyShade=c.service==='fire'?'#812d25':c.service==='ambulance'?'#b8d1d5':c.police?'#99b3c1':c.color;
+  const paint=ctx.createLinearGradient(0,-12,0,12);paint.addColorStop(0,'#c2ced0');paint.addColorStop(.15,bodyColor);paint.addColorStop(.65,bodyShade);paint.addColorStop(1,'#182c3a');
   rounded(-24,-12,49,24,6,paint);ctx.strokeStyle='#ffffff45';ctx.lineWidth=.8;ctx.stroke();
+  if(c.service==='fire')rect(-12,-13,25,4,'#f6d06c');
+  if(c.service==='ambulance'){rect(-8,-13,17,4,'#e0344a');rect(-1,-19,4,16,'#e0344a');}
   rounded(-10,-10,24,20,4,'#092432');
   const glass=ctx.createLinearGradient(-10,-9,14,8);glass.addColorStop(0,'#6596ac');glass.addColorStop(.4,'#214758');glass.addColorStop(1,'#0a2230');
   polygon([[8,-9],[14,-7],[14,7],[8,9]],glass);polygon([[-11,-8],[-7,-9],[-7,9],[-11,8]],glass);
@@ -463,7 +614,8 @@ function drawCar(c){
   rect(-2,-14,5,2,c.color);rect(-2,12,5,2,c.color);rounded(21,-10,4,6,1,'#fff1bf');rounded(21,4,4,6,1,'#fff1bf');
   rect(-25,-10,3,5,'#ff5264');rect(-25,5,3,5,'#ff5264');glow(-27,0,24,'#ff254019');
   rect(24,-4,2,8,'#08151f');rect(-25,-4,2,8,'#08151f');
-  if(c.police){rect(-2,-8,5,16,'#142535');glow(0,-5,35,time%1<.5?'#368bff80':'#ff304960');glow(0,5,35,time%1<.5?'#ff304960':'#368bff80');rect(-2,-8,5,7,'#47a0ff');rect(-2,1,5,7,'#ff4861');}
+  if(c.police||c.emergency){rect(-2,-8,5,16,'#142535');glow(0,-5,35,time%1<.5?'#368bff80':'#ff304960');glow(0,5,35,time%1<.5?'#ff304960':'#368bff80');rect(-2,-8,5,7,c.service==='fire'?'#ffcc44':'#47a0ff');rect(-2,1,5,7,'#ff4861');}
+  if(c.crashed){ctx.globalAlpha=.7;polygon([[8,-11],[17,-8],[12,0],[21,7],[3,9]],'#151515');ctx.globalAlpha=.35;glow(0,-19,28,'#9aa0a780');ctx.globalAlpha=1;}
   if(c===player.car&&Math.abs(c.velocity||0)>40){ctx.globalAlpha=.25;for(let k=0;k<3;k++)glow(-30-k*5,Math.sin(time*10+k)*4,7+k*2,'#d6dae855');ctx.globalAlpha=1}
   ctx.restore();
 }
@@ -562,6 +714,32 @@ function drawStreetProps(){
     glow(x+275,y+94,23,'#000b1380');ctx.fillStyle='#1e5550';for(let k=0;k<5;k++){ctx.beginPath();ctx.arc(x+272+Math.sin(k*2)*8,y+88+Math.cos(k*2)*8,12,0,7);ctx.fill()}ctx.fillStyle='#467a6260';ctx.beginPath();ctx.arc(x+268,y+85,10,0,7);ctx.fill();
   }
 }
+function drawTrafficLights(){
+  for(const light of trafficLights){
+    if(!visible(light.x,light.y,90))continue;
+    const state=trafficState(light),x=light.x-18,y=light.y-18;
+    rect(x-2,y-2,4,33,'#111a24');rounded(x-8,y-13,14,25,3,'#091018');
+    rounded(x-5,y-10,8,8,4,state.eastWest==='red'?'#ff3049':'#3a1118');
+    rounded(x-5,y+1,8,8,4,state.eastWest==='green'?'#62e36f':'#112a18');
+    glow(x-1,y+(state.eastWest==='red'?-6:5),18,state.eastWest==='red'?'#ff304955':'#62e36f44');
+    const x2=light.x+16,y2=light.y+16;
+    rect(x2-2,y2-24,4,33,'#111a24');rounded(x2-8,y2-34,14,25,3,'#091018');
+    rounded(x2-5,y2-31,8,8,4,state.northSouth==='red'?'#ff3049':'#3a1118');
+    rounded(x2-5,y2-20,8,8,4,state.northSouth==='green'?'#62e36f':'#112a18');
+    glow(x2-1,y2+(state.northSouth==='red'?-27:-16),18,state.northSouth==='red'?'#ff304955':'#62e36f44');
+  }
+}
+function drawEmergencyIncidents(){
+  for(const incident of incidents){
+    if(!visible(incident.x,incident.y,220))continue;
+    glow(incident.x,incident.y,70,'#ff6b3d25');
+    ctx.fillStyle='#111923dd';ctx.beginPath();ctx.arc(incident.x,incident.y,22+Math.sin(time*6)*2,0,7);ctx.fill();
+    ctx.strokeStyle='#ffcc66';ctx.lineWidth=2;ctx.beginPath();ctx.arc(incident.x,incident.y,29,0,7);ctx.stroke();
+    ctx.fillStyle='#ffcc66';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('NEHODA',incident.x,incident.y-35);
+    ctx.globalAlpha=.35;for(let k=0;k<5;k++){ctx.fillStyle='#9aa0a7';ctx.beginPath();ctx.arc(incident.x-12+k*6+Math.sin(time+k)*5,incident.y-24-k*9,9+k*2,0,7);ctx.fill()}ctx.globalAlpha=1;
+    for(const member of incident.crew)drawPerson(member.x,member.y,-Math.PI/2,member.color,time*7,false);
+  }
+}
 
 function drawBoundaryFog2d() {
   const band = 900;
@@ -640,11 +818,12 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   const viewX=Math.max(w/(2*scale),Math.min(size-w/(2*scale),camera.x));
   const viewY=Math.max(h/(2*scale),Math.min(size-h/(2*scale),camera.y));
   ctx.translate(w/2-viewX*scale,h/2-viewY*scale);ctx.scale(scale,scale);
-  drawTerrain();drawLandmarks();drawStreetProps();drawStreetNames();
+  drawTerrain();drawLandmarks();drawStreetProps();drawTrafficLights();drawStreetNames();
   for(const b of buildings)if(visible(b.x+b.w/2,b.y+b.h/2))drawBuilding(b);
   for(const l of lamps){if(!visible(l.x,l.y,130))continue;glow(l.x,l.y,130,'#ffc27b29');ctx.strokeStyle='#0a1622';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(l.x,l.y+10);ctx.lineTo(l.x-5,l.y-12);ctx.lineTo(l.x+6,l.y-18);ctx.stroke();glow(l.x+6,l.y-18,12,'#fff0bcdf');rounded(l.x+1,l.y-20,10,4,2,'#fff0b9')}
   for(const p of people)if(visible(p.x,p.y,30))drawPerson(p.x,p.y,p.axis?(p.dir>0?0:Math.PI):(p.dir>0?Math.PI/2:-Math.PI/2),p.color,time*7);
   for(const c of cars)if(visible(c.x,c.y,160))drawCar(c);
+  drawEmergencyIncidents();
   if(targetAvailable()){const m=mission();glow(m.x,m.y,60,'#ae7bfa23');drawPerson(m.x,m.y,-Math.PI/2,'#7c5185');ctx.strokeStyle='#c5f46b';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(m.x,m.y,23+Math.sin(time*3),15,0,0,7);ctx.stroke();ctx.fillStyle='#c5f46b';polygon([[m.x,m.y-29+Math.sin(time*2)*3],[m.x-5,m.y-37+Math.sin(time*2)*3],[m.x+5,m.y-37+Math.sin(time*2)*3]],'#c5f46b');ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText(m.speaker,m.x,m.y-48)}
   drawWorldNpcMarkers();
   if(!player.car){drawPerson(player.x,player.y,player.angle,'#2d3945',player.step,true);ctx.strokeStyle='#37d6ffee';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,15,0,7);ctx.stroke()}
@@ -683,6 +862,8 @@ function drawMap(){
     }
   }
   for(const c of cars.filter(c=>c.police)){ctx.fillStyle='#5c99ef';ctx.fillRect(c.x*s,c.y*s,3,3)}
+  for(const c of emergencyVehicles){ctx.fillStyle=c.service==='fire'?'#ff5c3f':c.service==='ambulance'?'#f1f7f2':'#5c99ef';ctx.fillRect(c.x*s-1.5,c.y*s-1.5,4,4)}
+  for(const incident of incidents){ctx.fillStyle='#ffcc66';ctx.beginPath();ctx.arc(incident.x*s,incident.y*s,4.5,0,7);ctx.fill();if(mapExpanded){ctx.font='bold 8px Arial';ctx.textAlign='center';ctx.fillText('NEHODA',incident.x*s,incident.y*s-7)}}
   if(mapExpanded){ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillStyle='#e3e7dc';for(const label of [{x:5000,y:3300,name:'ŽIŽKOV'},{x:8000,y:10000,name:'VINOHRADY'},{x:1800,y:9500,name:'KARLÍN'},{x:15800,y:6500,name:'CENTRUM'},{x:10000,y:16800,name:'HOLEŠOVICE'}])ctx.fillText(label.name,label.x*s,label.y*s)}
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x*s,player.y*s,4,0,7);ctx.fill();ctx.restore();ctx.font='10px Arial';ctx.textAlign='left';ctx.fillStyle='#bdcad1';ctx.fillText(mapExpanded?'CELÉ MĚSTO · [M]':'OKOLÍ · [M] CELÉ MĚSTO',x,y-17);
 }
@@ -772,7 +953,7 @@ function restoreProgress(){
 function setServiceMission(){missions[1]={title:'Poctivá směna',text:'Dojdi do autoservisu. Ještě dnes potřebují pomoc.',x:1070,y:315,label:'Pavel · autoservis',speaker:'PAVEL',dialog:'Potřebuju někoho na noční směnu. Tady máš devět stovek.',choices:[['Dokončit směnu. (+900 Kč)','deliver']]};}
 
 $('contracts').onclick=openContracts;
-window.streetLifeScene={size,block,gridSize,buildingBuckets,districtAt,buildings,cars,people,lamps,cityBlocks,transitStops,transitLines,player,onReady(){notify('3D Žižkov · nový renderer je aktivní');$('renderMode').textContent='3D';},onError(message){$('renderMode').textContent='2D';notify(message)}};
+window.streetLifeScene={size,block,gridSize,buildingBuckets,districtAt,buildings,cars,people,lamps,cityBlocks,transitStops,transitLines,trafficLights,trafficState,incidents,emergencyVehicles,player,onReady(){notify('3D Žižkov · nový renderer je aktivní');$('renderMode').textContent='3D';},onError(message){$('renderMode').textContent='2D';notify(message)}};
 function render(){
   if(!window.streetLifeRenderer){renderLegacy();return;}
   try{

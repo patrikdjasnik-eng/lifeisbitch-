@@ -5,7 +5,7 @@ const unit=1/20;
 const palette={asphalt:'#17222c',curb:'#61717d',stone:'#b3a99e',plaster:'#7d8386',roof:'#6b3e32',metal:'#526675',dark:'#101c26',window:'#d8b67c',glass:'#3e647b',grass:'#354e3c'};
 const materials=new Map();
 const boxGeometry=new THREE.BoxGeometry(1,1,1);
-const chunks=new Map(),carModels=new Map(),personModels=new Map();
+const chunks=new Map(),carModels=new Map(),personModels=new Map(),trafficLightModels=new Map();
 const matrix=new THREE.Matrix4(),position=new THREE.Vector3(),quaternion=new THREE.Quaternion(),scaling=new THREE.Vector3();
 let renderer,scene,camera,moon,moonTarget,hemiLight,marker,playerRing,contact,frameCount=0,lastAtmosphereKey='';
 let currentTarget=null;
@@ -270,6 +270,27 @@ function addStreetPlaques(group,area){
   const pole=cube(group,material('#65717c'),area.x*unit+3.3,.8,area.y*unit+3.9,.035,1.6,.035);
   addMesh(group,new THREE.PlaneGeometry(1.5,.47),mat,area.x*unit+3.3,1.65,area.y*unit+3.92,1,1,1,false);
 }
+function makeTrafficLight(light){
+  const group=new THREE.Group();
+  cube(group,material('#172430'),0,.8,0,.05,1.6,.05);
+  cube(group,material('#101720'),-.15,1.72,0,.28,.72,.16);
+  cube(group,material('#172430'),.75,.8,.75,.05,1.6,.05);
+  cube(group,material('#101720'),.75,1.72,.6,.28,.72,.16);
+  group.userData.ewRed=cube(group,material('#3a1118'),-.15,1.92,.09,.14,.14,.04,false);
+  group.userData.ewGreen=cube(group,material('#112a18'),-.15,1.55,.09,.14,.14,.04,false);
+  group.userData.nsRed=cube(group,material('#3a1118'),.75,1.92,.51,.14,.14,.04,false);
+  group.userData.nsGreen=cube(group,material('#112a18'),.75,1.55,.51,.14,.14,.04,false);
+  group.position.set(light.x*unit,.02,light.y*unit);
+  scene.add(group);trafficLightModels.set(light,group);return group;
+}
+function updateTrafficLightModel(light,clock){
+  const model=trafficLightModels.get(light)||makeTrafficLight(light),state=source.trafficState(light,clock);
+  model.userData.ewRed.material=material(state.eastWest==='red'?'#ff3049':'#3a1118',state.eastWest==='red'?{emissive:'#ff3049',emissiveIntensity:2}:{});
+  model.userData.ewGreen.material=material(state.eastWest==='green'?'#62e36f':'#112a18',state.eastWest==='green'?{emissive:'#62e36f',emissiveIntensity:2}:{});
+  model.userData.nsRed.material=material(state.northSouth==='red'?'#ff3049':'#3a1118',state.northSouth==='red'?{emissive:'#ff3049',emissiveIntensity:2}:{});
+  model.userData.nsGreen.material=material(state.northSouth==='green'?'#62e36f':'#112a18',state.northSouth==='green'?{emissive:'#62e36f',emissiveIntensity:2}:{});
+  return model;
+}
 function makeCar(car){
   if(car.transit){
     const group=new THREE.Group(),length=car.transit==='tram'?7:5;
@@ -280,7 +301,8 @@ function makeCar(car){
     if(car.transit==='tram'){cube(group,material('#adb8bd'),0,1.8,0,.08,.65,.08);cube(group,material('#adb8bd'),0,2.1,0,1.2,.06,.06);}
     group.userData.wheels=[];scene.add(group);carModels.set(car,group);return group;
   }
-  const group=new THREE.Group(),paint=new THREE.MeshStandardMaterial({color:car.police?'#a7b8c5':car.color,metalness:.55,roughness:.24});
+  const emergencyColor=car.service==='fire'?'#d94a2e':car.service==='ambulance'?'#f3f7f1':car.police?'#a7b8c5':car.color;
+  const group=new THREE.Group(),paint=new THREE.MeshStandardMaterial({color:emergencyColor,metalness:.55,roughness:.24});
   const body=cube(group,paint,0,.35,0,2.28,.42,1.05);body.castShadow=true;
   cube(group,paint,-.17,.7,0,1.12,.38,.87);cube(group,material('#143342',{metalness:.3,roughness:.12}),.42,.72,0,.09,.31,.83);
   cube(group,material('#163142',{metalness:.3,roughness:.12}),-.76,.68,0,.075,.28,.81);
@@ -292,7 +314,11 @@ function makeCar(car){
     cube(group,material('#db4047',{emissive:'#ff2839',emissiveIntensity:1}),-1.15,.4,zz,.04,.13,.2,false);
   }
   cube(group,material('#87959c',{metalness:.8}),1.16,.22,0,.04,.08,.92);
-  if(car.police){cube(group,material('#174eff',{emissive:'#185eff',emissiveIntensity:2}),-.1,.94,-.2,.3,.09,.23);cube(group,material('#ff3552',{emissive:'#ff3552',emissiveIntensity:2}),-.1,.94,.2,.3,.09,.23)}
+  if(car.service==='fire')cube(group,material('#ffd166',{emissive:'#ffb347',emissiveIntensity:1.4}),-.08,.95,0,.9,.08,.14);
+  if(car.service==='ambulance'){cube(group,material('#e0344a',{emissive:'#e0344a',emissiveIntensity:.8}),-.08,.96,0,.95,.09,.08);cube(group,material('#e0344a',{emissive:'#e0344a',emissiveIntensity:.8}),-.08,.96,0,.12,.09,.7);}
+  if(car.police||car.emergency){cube(group,material(car.service==='fire'?'#ffcc44':'#174eff',{emissive:car.service==='fire'?'#ffcc44':'#185eff',emissiveIntensity:2}),-.1,1.04,-.2,.3,.09,.23);cube(group,material('#ff3552',{emissive:'#ff3552',emissiveIntensity:2}),-.1,1.04,.2,.3,.09,.23)}
+  group.userData.damage=cube(group,material('#16191e'),.35,.92,0,.65,.1,.9);
+  group.userData.damage.visible=Boolean(car.crashed);
   group.userData.wheels=wheels;scene.add(group);carModels.set(car,group);return group;
 }
 const skinMaterial=material('#c6a180');
@@ -346,7 +372,19 @@ function setup(){
       const index=r*source.gridSize+c;if(!chunks.has(index))makeChunk(source.cityBlocks[index],index);chunks.get(index).visible=true;
     }
     if(chunks.size>81)throw new Error('Chunk cache exceeded its spatial limit');
-    for(const car of source.cars){const distance=Math.hypot(car.x-state.camera.x,car.y-state.camera.y),nearby=distance<1000;let model=carModels.get(car);if(model&&distance>2000){disposeChunk(model);carModels.delete(car);continue;}if(nearby&&!model)model=makeCar(car);if(!model)continue;model.visible=nearby;if(nearby){model.position.set(car.x*unit,.02,car.y*unit);model.rotation.y=-car.angle;for(const wheel of model.userData.wheels)wheel.rotation.y=(state.time*(car.velocity||car.speed)*.05)%Math.PI;}}
+    const liveTrafficLights=new Set();
+    for(const light of source.trafficLights||[]){
+      const distance=Math.hypot(light.x-state.camera.x,light.y-state.camera.y);
+      if(distance>=950)continue;
+      const model=updateTrafficLightModel(light,state.time);
+      model.visible=true;liveTrafficLights.add(light);
+    }
+    for(const [light,model]of trafficLightModels){
+      if(liveTrafficLights.has(light))continue;
+      if(Math.hypot(light.x-state.camera.x,light.y-state.camera.y)>1600){scene.remove(model);trafficLightModels.delete(light);}
+      else model.visible=false;
+    }
+    for(const car of source.cars){const distance=Math.hypot(car.x-state.camera.x,car.y-state.camera.y),nearby=distance<1000;let model=carModels.get(car);if(model&&distance>2000){disposeChunk(model);carModels.delete(car);continue;}if(nearby&&!model)model=makeCar(car);if(!model)continue;model.visible=nearby;if(nearby){model.position.set(car.x*unit,.02,car.y*unit);model.rotation.y=-car.angle;if(model.userData.damage)model.userData.damage.visible=Boolean(car.crashed);for(const wheel of model.userData.wheels)wheel.rotation.y=(state.time*(car.velocity||car.trafficVelocity||car.speed)*.05)%Math.PI;}}
     for(const person of source.people){const distance=Math.hypot(person.x-state.camera.x,person.y-state.camera.y),nearby=distance<850;let model=personModels.get(person);if(model&&distance>1700){disposeChunk(model);personModels.delete(person);continue;}if(nearby&&!model){model=makePerson(person.color);if(person.role){cube(model,material('#1f293b'),0,1.31,0,.3,.08,.3);cube(model,material('#d5bf73'),.08,.88,.145,.07,.1,.025);}personModels.set(person,model)}if(!model)continue;model.visible=nearby;if(nearby){model.position.set(person.x*unit,.12,person.y*unit);model.rotation.y=person.axis?(person.dir>0?-Math.PI/2:Math.PI/2):(person.dir>0?0:Math.PI);model.userData.limbs.forEach((limb,i)=>limb.rotation.x=Math.sin(state.time*7+i%2*Math.PI)*.45)}}
     playerRing.position.set(state.player.x*unit,.22,state.player.y*unit);playerRing.scale.setScalar(state.player.car?2.15:1);
     playerModel.visible=!state.player.car;playerModel.position.set(state.player.x*unit,.12,state.player.y*unit);playerModel.rotation.y=-state.player.angle+Math.PI/2;playerModel.userData.limbs.forEach((limb,i)=>limb.rotation.x=Math.sin(state.player.step+i%2*Math.PI)*.45);
