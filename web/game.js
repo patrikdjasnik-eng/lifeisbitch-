@@ -13,7 +13,9 @@ const pragueDistrictAnchors=[
   {name:'HRADČANY',lat:50.090,lng:14.398,color:'#d7b486',style:'old'}
 ].map(d=>({...d,x:(d.lng-14.452)*111320*Math.cos(50.084*Math.PI/180),y:-(d.lat-50.084)*111320}));
 let w=innerWidth,h=innerHeight,dpr=1,started=false,paused=false,dialogOpen=false,last=0,time=0,toastTimer=0,audio=null,sound=false;
-const player={x:255,y:350,angle:0,car:null,cash:1200,rep:0,heat:0,health:100,step:0,xp:0};
+const STARTING_CASH = 15000;
+const CAPITAL_GRANT_VERSION = 2;
+const player={x:255,y:350,angle:0,car:null,cash:STARTING_CASH,rep:0,heat:0,health:100,step:0,xp:0};
 const camera={x:player.x,y:player.y};
 let viewZoom = 1;
 let cityMapZoom = 1;
@@ -48,7 +50,11 @@ const featureLog = [
   'Novinka: Každý NPC dialog má ukončení konverzace a v budovách i rychlé opuštění budovy.',
   'Novinka: Mapa pod klávesou M má tmavý režim a přepínač motivu.',
   'Novinka: Telefon dostal textový fake inbox se zprávami z města.',
-  'Novinka: Fake internet café má realistický textový web s články, fórem, bazarem a samostudiem.'
+  'Novinka: Fake internet café má realistický textový web s články, fórem, bazarem a samostudiem.',
+  'Novinka: Grafika má výraznější mokré odlesky, světelné louže, lane markery a živější noční kontrast.',
+  'Novinka: Burza má rozšířený trading terminál pro akcie, ETF, měny i BetonCoin včetně částečných prodejů.',
+  'Novinka: Telefon dostal sociální síť BetonNet s feedem, statusy a reputací.',
+  'Novinka: AA grafický pass přidává kontaktní stíny, filmový grading, světelné kužely, detaily asfaltu a luxusnější noční atmosféru.'
 ];
 const inventoryCatalog = {
   phone: { name: 'Telefon', type: 'utility' },
@@ -68,6 +74,7 @@ let gameplayLog = featureLog.map((text, index) => ({ day: 1, text, system: true,
 let educationState = { studyPoints: 0, highSchool: false, method: null, betterJobs: false };
 let policeKnowledgeState = { passed: false, active: false, index: 0, score: 0 };
 let unlockedWeapons = [];
+let socialState = { followers: 23, likes: 0, postedDay: 0, streak: 0 };
 const policeWeapons = [
   { id: 'pepper', name: 'Pepřový sprej', level: 1 },
   { id: 'baton', name: 'Teleskopický obušek', level: 2 },
@@ -107,6 +114,13 @@ const fakeTextMessages = [
   { time: '09:11', from: 'Město info', text: 'V Zahradním Městě prší a autobusy nabírají zpoždění. Počítej s delší cestou.' },
   { time: '10:27', from: 'Banka', text: 'Připomínka: účet a splátky řeš na pobočce. Podezřelé odkazy ignoruj.' },
   { time: '11:05', from: 'Sousedský chat', text: 'Někdo nechal u knihovny batoh. Je u pultu, žádná panika.' }
+];
+const fakeSocialPosts = [
+  { author: 'Eliška', handle: '@eliska.domu', text: 'Někdy je výhra jen to, že se člověk vrátí domů včas.', tag: 'rodina', heat: 7 },
+  { author: 'Pavel Servis', handle: '@garaz_pavel', text: 'Kdo přijde včas a maká, dostane další směnu. Zbytek jsou řeči.', tag: 'práce', heat: 12 },
+  { author: 'Míra Knihovna', handle: '@zahradni_knihovna', text: 'Samostudium není ostuda. Je to tichý grind bez publika.', tag: 'studium', heat: 18 },
+  { author: 'PrahaDnes.fake', handle: '@praha_dnes', text: 'Déšť zpomalil dopravu, ale město jede dál. Hlavně klid u přechodů.', tag: 'město', heat: 24 },
+  { author: 'Betonový Sen', handle: '@beton_sen', text: 'Reputace se nedá koupit. Dá se jen každý den trochu nezkazit.', tag: 'ulice', heat: 31 }
 ];
 const fakeInternetPages = [
   {
@@ -392,6 +406,52 @@ function vehicleAt(car,x,y,range=32){
 }
 const incidents=[],emergencyVehicles=[];
 let incidentId=0;
+function pointClearForVehicle(point, placed = [], radius = 54) {
+  return !carCollision(point.x, point.y, point.angle) && placed.every(other => distance(other, point) >= radius);
+}
+function incidentVehicleSpot(incident, index, placed) {
+  const layout = [
+    { x: -38, y: -18, angle: 0 },
+    { x: 34, y: 18, angle: Math.PI / 2 },
+    { x: -12, y: 44, angle: 0 },
+    { x: 48, y: -36, angle: Math.PI / 2 }
+  ];
+  const fallbacks = [
+    { x: -70, y: 22, angle: 0 },
+    { x: 70, y: -22, angle: Math.PI },
+    { x: 22, y: 70, angle: -Math.PI / 2 },
+    { x: -22, y: -70, angle: Math.PI / 2 }
+  ];
+  for (const offset of [layout[index % layout.length], ...fallbacks]) {
+    const point = { x: incident.x + offset.x, y: incident.y + offset.y, angle: offset.angle };
+    if (pointClearForVehicle(point, placed, 50)) return point;
+  }
+  return { x: incident.x + (index - .5) * 56, y: incident.y + 28 + index * 12, angle: index % 2 ? Math.PI / 2 : 0 };
+}
+function arrangeIncidentVehicles(incident) {
+  const placed = [];
+  incident.vehicles.forEach((car, index) => {
+    const spot = incidentVehicleSpot(incident, index, placed);
+    car.x = spot.x; car.y = spot.y; car.angle = spot.angle; car.axis = Math.abs(Math.cos(spot.angle)) > Math.abs(Math.sin(spot.angle));
+    placed.push({ x: car.x, y: car.y, angle: car.angle });
+  });
+}
+function incidentSceneTarget(incident, service) {
+  incident.sceneTargets ??= {};
+  if (incident.sceneTargets[service]) return incident.sceneTargets[service];
+  const options = {
+    police: [{ x: -92, y: 52, angle: 0 }, { x: 92, y: -52, angle: Math.PI }, { x: -58, y: -78, angle: Math.PI / 2 }],
+    fire: [{ x: 96, y: 58, angle: Math.PI }, { x: -96, y: -58, angle: 0 }, { x: 64, y: -82, angle: Math.PI / 2 }],
+    ambulance: [{ x: -58, y: 96, angle: -Math.PI / 2 }, { x: 58, y: -96, angle: Math.PI / 2 }, { x: 104, y: 18, angle: Math.PI }]
+  }[service] || [{ x: 0, y: 92, angle: -Math.PI / 2 }];
+  const occupied = [...incident.vehicles, ...Object.values(incident.sceneTargets)];
+  for (const offset of options) {
+    const point = { x: incident.x + offset.x, y: incident.y + offset.y, angle: offset.angle };
+    if (pointClearForVehicle(point, occupied, 62)) return incident.sceneTargets[service] = point;
+  }
+  const index = Object.keys(incident.sceneTargets).length;
+  return incident.sceneTargets[service] = { x: incident.x + 86 * Math.cos(index * 2.1), y: incident.y + 86 * Math.sin(index * 2.1), angle: index * 2.1 + Math.PI };
+}
 function stationDoor(name){
   const building=buildings.find(item=>item.name===name);
   if(!building)return {x:255,y:350};
@@ -428,7 +488,8 @@ function dispatchEmergency(incident){
 function createIncident(x,y,vehicles=[],cause='traffic'){
   const nearby=incidents.find(item=>!item.resolved&&distance(item,{x,y})<120);
   if(nearby)return nearby;
-  const incident={id:++incidentId,x,y,age:0,cause,vehicles:vehicles.filter(Boolean),assigned:{},arrived:{},crew:[],resolved:false,resolveTimer:0};
+  const incident={id:++incidentId,x,y,age:0,cause,vehicles:vehicles.filter(Boolean),assigned:{},arrived:{},crew:[],sceneTargets:{},resolved:false,resolveTimer:0};
+  arrangeIncidentVehicles(incident);
   for(const car of incident.vehicles){
     car.crashed=true;car.parked=true;car.velocity=0;car.trafficVelocity=0;car.crashCooldown=2.5;
     if(car===player.car){player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
@@ -440,11 +501,12 @@ function createIncident(x,y,vehicles=[],cause='traffic'){
 function ensureIncidentCrew(incident,service){
   if(incident.crew.some(member=>member.service===service))return;
   const color=service==='police'?'#1f3f78':service==='fire'?'#983c32':'#e8efe9';
-  incident.crew.push({service,x:incident.x+(incident.crew.length-1)*18,y:incident.y+34+incident.crew.length*8,color});
+  const target=incidentSceneTarget(incident,service),index=incident.crew.length;
+  incident.crew.push({service,x:target.x-18+index*16,y:target.y+22+index*6,color});
 }
 function finishIncident(incident){
   incident.resolved=true;
-  for(const car of incident.vehicles){car.crashed=false;car.parked=true;car.speed=car.speed||60;car.trafficVelocity=0;}
+  for(const car of incident.vehicles){car.crashed=false;car.speed=car.speed||60;car.parked=Boolean(car.ownedId)||car.speed===0;car.trafficVelocity=car.parked?0:car.speed;}
   for(const vehicle of Object.values(incident.assigned)){vehicle.duty='return';vehicle.targetIncident=null;vehicle.trafficVelocity=vehicle.speed;}
   if(distance(player,incident)<450)notify('Zásah ukončen · nehoda odklizena');
 }
@@ -458,8 +520,9 @@ function updateEmergencyServices(dt){
     incident.age+=dt;dispatchEmergency(incident);
     for(const [service,vehicle] of Object.entries(incident.assigned)){
       if(vehicle.duty!=='respond')continue;
-      if(distance(vehicle,incident)>45)moveEmergencyVehicle(vehicle,incident,dt);
-      else{vehicle.duty='scene';vehicle.trafficVelocity=0;incident.arrived[service]=true;ensureIncidentCrew(incident,service);}
+      const target=incidentSceneTarget(incident,service);
+      if(distance(vehicle,target)>18)moveEmergencyVehicle(vehicle,target,dt);
+      else{vehicle.x=target.x;vehicle.y=target.y;vehicle.angle=target.angle;vehicle.duty='scene';vehicle.trafficVelocity=0;incident.arrived[service]=true;ensureIncidentCrew(incident,service);}
     }
     if(['police','fire','ambulance'].every(service=>incident.arrived[service])||incident.age>45){
       incident.resolveTimer+=dt;
@@ -740,6 +803,64 @@ for(const p of people){if(p.stationary)continue;if(['police','warden'].includes(
 function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill()}
 function rounded(x,y,width,height,radius,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,width,height,radius);ctx.fill()}
 function visible(x,y,margin=250){const scale=(w<800?1.04:1.32)*viewZoom,cx=Math.max(worldMin+w/(2*scale),Math.min(size-w/(2*scale),camera.x)),cy=Math.max(worldMin+h/(2*scale),Math.min(size-h/(2*scale),camera.y));return Math.abs(x-cx)<w/(2*scale)+margin&&Math.abs(y-cy)<h/(2*scale)+margin}
+function vehicleLightFactor(){return pragueWeather.phase==='night'?1:pragueWeather.phase==='evening'?.72:pragueWeather.wet?.38:0}
+function drawWorldContactShadows(){
+  ctx.save();ctx.globalCompositeOperation='multiply';
+  const phase=pragueWeather.phase,alpha=phase==='day'?.12:phase==='morning'||phase==='evening'?.2:.34,angle=phase==='morning'?.72:phase==='evening'?-2.35:-.95;
+  for(const b of visibleBuildingList(260)){
+    const reach=Math.min(210,34+b.height*2.9),dx=Math.cos(angle)*reach,dy=Math.sin(angle)*reach*.58;
+    polygon([[b.x,b.y+b.h],[b.x+b.w,b.y+b.h],[b.x+b.w+dx,b.y+b.h+dy],[b.x+dx,b.y+b.h+dy]],'rgba(2,7,13,'+alpha+')');
+    if(b.height>25)polygon([[b.x+b.w,b.y+18],[b.x+b.w+dx*.65,b.y+18+dy*.65],[b.x+b.w+dx*.65,b.y+b.h+dy*.65],[b.x+b.w,b.y+b.h]],'rgba(2,7,13,'+(alpha*.55)+')');
+  }
+  for(const c of cars){if(!visible(c.x,c.y,95))continue;ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);ctx.globalAlpha=c.parked?.18:.26;ctx.fillStyle='#02060c';ctx.beginPath();ctx.ellipse(6,10,c.luxury?38:31,c.transit?15:10,.05,0,7);ctx.fill();ctx.restore();}
+  ctx.restore();
+}
+function drawRoadSurfaceDecals(){
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  const wet=pragueWeather.wet,roadAlpha=wet?.42:.28;
+  ctx.strokeStyle='rgba(198,213,210,'+roadAlpha+')';ctx.lineWidth=1.2;
+  for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){
+    const x=col*block+35,y=row*block+35;if(!visible(x,y,260))continue;
+    if((row+col)%2===0){
+      for(let k=0;k<6;k++){rect(x-34+k*10,y+54,5,34,'rgba(228,231,215,.26)');rect(x+54,y-34+k*10,34,5,'rgba(228,231,215,.26)');}
+      ctx.strokeStyle='rgba(255,207,112,.34)';ctx.setLineDash([8,8]);ctx.beginPath();ctx.arc(x,y,28,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    }
+    if((row*13+col*7)%5===0){rounded(x+118,y+54,56,18,4,wet?'#0e1a2485':'#111b2470');ctx.strokeStyle='#94a7ad24';ctx.strokeRect(x+123,y+58,46,10);}
+    if((row*5+col*11)%7===0){ctx.fillStyle=wet?'#9fc8e421':'#11182052';ctx.beginPath();ctx.ellipse(x+92,y+142,34,9,.4,0,7);ctx.fill();}
+    if((row+col)%4===0){ctx.strokeStyle='#b8c3bd34';ctx.beginPath();ctx.arc(x+205,y+61,9,0,7);ctx.stroke();ctx.beginPath();ctx.moveTo(x+197,y+61);ctx.lineTo(x+213,y+61);ctx.moveTo(x+205,y+53);ctx.lineTo(x+205,y+69);ctx.stroke();}
+  }
+  ctx.restore();
+}
+function drawPremiumLightPass(){
+  const factor=vehicleLightFactor();
+  ctx.save();ctx.globalCompositeOperation='screen';
+  for(const lamp of lamps){if(!visible(lamp.x,lamp.y,210))continue;const pulse=.85+Math.sin(time*2+lamp.x*.02)*.08;glow(lamp.x+6,lamp.y-18,115*pulse,'#ffc77b24');if(pragueWeather.wet){ctx.globalAlpha=.28*pulse;const g=ctx.createLinearGradient(lamp.x-30,lamp.y+18,lamp.x+60,lamp.y+74);g.addColorStop(0,'#ffcf8700');g.addColorStop(.5,'#ffd18b66');g.addColorStop(1,'#ffcf8700');ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(lamp.x+17,lamp.y+46,55,12,.25,0,7);ctx.fill();ctx.globalAlpha=1;}}
+  for(const b of visibleBuildingList(320)){
+    if(!b.name)continue;
+    const neon=b.name==='NEON'?'#eb6dff':b.type==='industrial'?'#e7bc6b':b.type==='modern'?'#55eadb':'#ffb876',signY=b.y+b.h-8;
+    glow(b.x+b.w/2,signY,150,neon+'22');
+  }
+  if(factor){
+    for(const c of cars){if(!visible(c.x,c.y,210)||c.crashed)continue;ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);ctx.globalAlpha=factor*(c.parked?.36:.68);const beam=ctx.createLinearGradient(18,0,180,0);beam.addColorStop(0,'#fff2c25c');beam.addColorStop(.35,'#ffe9ad21');beam.addColorStop(1,'#ffe9ad00');for(const yy of [-7,7])polygon([[18,yy-3],[180,yy-37],[195,yy+34],[18,yy+3]],beam);ctx.globalAlpha=pragueWeather.wet?factor*.4:factor*.16;const red=ctx.createLinearGradient(-30,0,-92,0);red.addColorStop(0,'#ff405766');red.addColorStop(1,'#ff405700');for(const yy of [-6,6])polygon([[-24,yy-3],[-92,yy-13],[-98,yy+12],[-24,yy+3]],red);ctx.restore();}
+  }
+  ctx.restore();
+}
+function drawCinematicGrade(){
+  ctx.save();
+  const vignette=ctx.createRadialGradient(w*.5,h*.45,Math.min(w,h)*.28,w*.5,h*.5,Math.max(w,h)*.72);vignette.addColorStop(0,'#ffffff00');vignette.addColorStop(.7,'#00000018');vignette.addColorStop(1,'#01050ccc');rect(0,0,w,h,vignette);
+  const highlight=ctx.createLinearGradient(0,0,w,h);highlight.addColorStop(0,pragueWeather.phase==='day'?'#7ec9ff08':'#9ab4ff0b');highlight.addColorStop(.55,'#00000000');highlight.addColorStop(1,pragueWeather.phase==='evening'?'#ff9d5d10':'#00e5ff05');rect(0,0,w,h,highlight);
+  ctx.globalAlpha=pragueWeather.phase==='night'?.16:.08;ctx.fillStyle='#ffffff';for(let i=0;i<70;i++){const x=(i*137+Math.floor(time*12)*29)%Math.max(1,w),y=(i*83+Math.floor(time*12)*17)%Math.max(1,h);ctx.fillRect(x,y,1,1)}ctx.globalAlpha=1;
+  ctx.restore();
+}
+function drawStorefrontDetails(b){
+  if(!b.name)return;
+  const y=b.y+b.h-48,glass=ctx.createLinearGradient(b.x,y,b.x+b.w,y+34);glass.addColorStop(0,'#0b1f2b');glass.addColorStop(.45,b.type==='modern'?'#2f6c82':'#514334');glass.addColorStop(1,'#07131c');
+  rounded(b.x+11,y,Math.min(72,b.w-22),30,3,glass);rect(b.x+18,y+6,Math.min(56,b.w-36),1,'#ffffff70');rect(b.x+18,y+16,Math.min(50,b.w-36),1,'#ffffff25');
+  if(b.w>96){rounded(b.x+b.w-80,y+3,58,24,3,'#07121bd8');for(let k=0;k<3;k++)rect(b.x+b.w-72+k*18,y+8,12,11,k%2?'#d8a85b':'#72d7d8');}
+  const awning=b.name==='ŘEZNICTVÍ'?'#b54747':b.name==='POTRAVINY'?'#4d8c5f':b.name.includes('AUTOSALON')?'#5c6f83':'#8b5aa8';
+  polygon([[b.x+6,y-8],[b.x+b.w-6,y-8],[b.x+b.w-15,y],[b.x+15,y]],awning);for(let k=0;k<Math.floor((b.w-20)/18);k++)rect(b.x+12+k*18,y-7,8,7,'#ffffff26');
+  if(pragueWeather.wet){ctx.globalAlpha=.18;rect(b.x+11,y+35,Math.min(72,b.w-22),2,'#bcecff');ctx.globalAlpha=1;}
+}
 function drawBuilding(b){
   const elevation=24+b.height*1.1,dx=-elevation*.22,dy=-elevation*.5;
   polygon([[b.x,b.y],[b.x+b.w,b.y],[b.x+b.w+elevation*.9,b.y+b.h+elevation*.8],[b.x+elevation*.9,b.y+b.h+elevation*.8]],'#00080f65');
@@ -767,6 +888,7 @@ function drawBuilding(b){
   rect(b.x+dx+b.w-29,b.y+dy+20,17,24,'#14222e');rect(b.x+dx+b.w-31,b.y+dy+17,17,24,'#5f6b72');
   }
   drawRoofDetails(b,dx,dy);drawRoofFixtures(b,dx,dy);
+  drawStorefrontDetails(b);
   if(b.name){
     const neon=b.name==='NEON'?'#eb6dff':b.type==='old'?'#ffb876':b.type==='industrial'?'#e7bc6b':'#55eadb',signY=b.y+b.h-9;
     rounded(b.x+8,signY-19,b.w-16,23,2,'#08121a');ctx.fillStyle=neon;ctx.shadowColor=neon;ctx.shadowBlur=14;ctx.font='bold '+(b.name.length>7?10:17)+'px Arial';ctx.textAlign='center';ctx.fillText(b.name,b.x+b.w/2,signY-3);ctx.shadowBlur=0;
@@ -814,8 +936,8 @@ function drawRoofDetails(b,dx,dy){
 function drawCar(c){
   ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.angle);if(c.luxury)ctx.scale(c.vehicleClass==='limousine'?1.2:1.08,c.vehicleClass==='suv'||c.vehicleClass==='box'?1.16:1.05);
   rounded(-25,-10,52,25,9,'#00091099');
-  const beam=ctx.createLinearGradient(20,0,150,0);beam.addColorStop(0,'#fff5d159');beam.addColorStop(.35,'#ffedb71b');beam.addColorStop(1,'#fff6d000');
-  for(const yy of [-7,7])polygon([[20,yy-3],[150,yy-30],[165,yy+28],[20,yy+3]],beam);
+  const lightFactor=vehicleLightFactor();
+  if(lightFactor){ctx.globalAlpha=lightFactor*.9;const beam=ctx.createLinearGradient(20,0,150,0);beam.addColorStop(0,'#fff5d159');beam.addColorStop(.35,'#ffedb71b');beam.addColorStop(1,'#fff6d000');for(const yy of [-7,7])polygon([[20,yy-3],[150,yy-30],[165,yy+28],[20,yy+3]],beam);ctx.globalAlpha=1;}
   rounded(-19,-15,11,6,2,'#080d13');rounded(10,-15,11,6,2,'#080d13');rounded(-19,9,11,6,2,'#080d13');rounded(10,9,11,6,2,'#080d13');
   const bodyColor=c.service==='fire'?'#d94a2e':c.service==='ambulance'?'#f3f7f1':c.police?'#f2f4f2':c.color,bodyShade=c.service==='fire'?'#812d25':c.service==='ambulance'?'#b8d1d5':c.police?'#99b3c1':c.color;
   const paint=ctx.createLinearGradient(0,-12,0,12);paint.addColorStop(0,'#c2ced0');paint.addColorStop(.15,bodyColor);paint.addColorStop(.65,bodyShade);paint.addColorStop(1,'#182c3a');
@@ -828,7 +950,7 @@ function drawCar(c){
   rounded(-6,-8,13,16,2,c.police?'#edf3f1':c.color);rect(-5,-7,10,1,'#ffffff50');
   ctx.strokeStyle='#101e2b99';ctx.beginPath();ctx.moveTo(16,-9);ctx.lineTo(16,9);ctx.moveTo(-16,-9);ctx.lineTo(-16,9);ctx.stroke();
   rect(-2,-14,5,2,c.color);rect(-2,12,5,2,c.color);rounded(21,-10,4,6,1,'#fff1bf');rounded(21,4,4,6,1,'#fff1bf');
-  rect(-25,-10,3,5,'#ff5264');rect(-25,5,3,5,'#ff5264');glow(-27,0,24,'#ff254019');
+  const braking=(c.parked||Math.abs(c.trafficVelocity||c.velocity||0)<6)&&!c.transit;rect(-25,-10,3,5,braking?'#ff3049':'#ff5264');rect(-25,5,3,5,braking?'#ff3049':'#ff5264');glow(-27,0,braking?36:24,braking?'#ff254041':'#ff254019');
   if(c.luxury){rect(23,-5,3,10,'#c2cdd3');rect(20,-10,4,2,'#e3faff');rect(20,8,4,2,'#e3faff');if(c.vehicleClass==='box')rounded(-29,-7,6,14,2,'#111b24');}
   rect(24,-4,2,8,'#08151f');rect(-25,-4,2,8,'#08151f');
   if(c.police||c.emergency){rect(-2,-8,5,16,'#142535');glow(0,-5,35,time%1<.5?'#368bff80':'#ff304960');glow(0,5,35,time%1<.5?'#ff304960':'#368bff80');rect(-2,-8,5,7,c.service==='fire'?'#ffcc44':'#47a0ff');rect(-2,1,5,7,'#ff4861');}
@@ -947,6 +1069,57 @@ function drawTrafficLights(){
     glow(x2-1,y2+(state.northSouth==='red'?-27:-16),18,state.northSouth==='red'?'#ff304955':'#62e36f44');
   }
 }
+function drawRoadPolish(){
+  ctx.save();
+  ctx.lineCap='round';
+  const wet=pragueWeather.wet,alpha=wet ? .36 : .18;
+  ctx.strokeStyle='rgba(218,229,226,'+alpha+')';
+  ctx.setLineDash([26,42]);
+  ctx.lineWidth=2;
+  for(let i=minCell;i<gridSize;i++){
+    const lane=i*block+35;
+    if(visible(lane,camera.y,block)){ctx.beginPath();ctx.moveTo(lane,Math.max(worldMin,camera.y-900));ctx.lineTo(lane,Math.min(size,camera.y+900));ctx.stroke();}
+    if(visible(camera.x,lane,block)){ctx.beginPath();ctx.moveTo(Math.max(worldMin,camera.x-1200),lane);ctx.lineTo(Math.min(size,camera.x+1200),lane);ctx.stroke();}
+  }
+  ctx.setLineDash([]);
+  ctx.lineWidth=1;
+  ctx.strokeStyle=wet?'#b9d7e13a':'#d4d6c525';
+  for(let row=minCell;row<gridSize;row+=2)for(let col=minCell;col<gridSize;col+=2){
+    const x=col*block+35,y=row*block+35;if(!visible(x,y,520))continue;
+    for(let k=0;k<4;k++){ctx.beginPath();ctx.moveTo(x-140+k*32,y+49);ctx.lineTo(x-120+k*32,y+49);ctx.moveTo(x+49,y-140+k*32);ctx.lineTo(x+49,y-120+k*32);ctx.stroke();}
+  }
+  if(wet){
+    ctx.globalAlpha=.22;
+    for(let row=minCell;row<gridSize;row+=3)for(let col=minCell;col<gridSize;col+=3){
+      const x=col*block+130,y=row*block+92;if(!visible(x,y,360))continue;
+      const g=ctx.createLinearGradient(x-60,y-8,x+70,y+14);g.addColorStop(0,'#81b7d000');g.addColorStop(.5,'#9ed8ff55');g.addColorStop(1,'#81b7d000');
+      ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x+Math.sin(time+row)*18,y+Math.cos(time*.7+col)*9,92,8,.08,0,7);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+function drawAmbientReflections(){
+  if(!pragueWeather.wet&&pragueWeather.phase==='day')return;
+  ctx.save();
+  const wet=pragueWeather.wet;
+  for(const lamp of lamps){
+    if(!visible(lamp.x,lamp.y,170))continue;
+    const g=ctx.createRadialGradient(lamp.x+10,lamp.y+32,2,lamp.x+10,lamp.y+32,wet?90:50);
+    g.addColorStop(0,wet?'#ffd48d35':'#ffd48d18');g.addColorStop(1,'#ffd48d00');
+    ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(lamp.x+14,lamp.y+42,wet?70:36,wet?18:10,.18,0,7);ctx.fill();
+  }
+  if(wet){
+    for(const b of visibleBuildingList(260)){
+      if(!b.name||!visible(b.x+b.w/2,b.y+b.h,180))continue;
+      const neon=b.name==='NEON'?'#eb6dff':b.type==='old'?'#ffb876':b.type==='industrial'?'#e7bc6b':'#55eadb';
+      ctx.globalAlpha=.18;
+      for(let k=0;k<5;k++)rect(b.x+12-k*3,b.y+b.h+12+k*9,b.w-24+k*6,3,neon);
+      ctx.globalAlpha=1;
+    }
+  }
+  ctx.restore();
+}
 function drawEmergencyIncidents(){
   for(const incident of incidents){
     if(!visible(incident.x,incident.y,220))continue;
@@ -1036,9 +1209,10 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   const viewX=Math.max(worldMin+w/(2*scale),Math.min(size-w/(2*scale),camera.x));
   const viewY=Math.max(worldMin+h/(2*scale),Math.min(size-h/(2*scale),camera.y));
   ctx.translate(w/2-viewX*scale,h/2-viewY*scale);ctx.scale(scale,scale);
-  drawTerrain();drawLandmarks();drawStreetProps();drawTrafficLights();drawStreetNames();
+  drawTerrain();drawRoadPolish();drawRoadSurfaceDecals();drawLandmarks();drawStreetProps();drawTrafficLights();drawStreetNames();drawWorldContactShadows();
   for(const b of visibleBuildingList())if(visible(b.x+b.w/2,b.y+b.h/2))drawBuilding(b);
   for(const l of lamps){if(!visible(l.x,l.y,130))continue;glow(l.x,l.y,130,'#ffc27b29');ctx.strokeStyle='#0a1622';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(l.x,l.y+10);ctx.lineTo(l.x-5,l.y-12);ctx.lineTo(l.x+6,l.y-18);ctx.stroke();glow(l.x+6,l.y-18,12,'#fff0bcdf');rounded(l.x+1,l.y-20,10,4,2,'#fff0b9')}
+  drawAmbientReflections();drawPremiumLightPass();
   for(const p of people)if(visible(p.x,p.y,30))drawPerson(p.x,p.y,p.axis?(p.dir>0?0:Math.PI):(p.dir>0?Math.PI/2:-Math.PI/2),p.color,time*7);
   for(const c of cars)if(visible(c.x,c.y,160))drawCar(c);
   drawEmergencyIncidents();
@@ -1049,6 +1223,7 @@ function renderLegacy(){if(interior){renderInterior2d();return;}
   ctx.restore();
   drawDistrictAtmosphere();
   drawWeatherOverlay();
+  drawCinematicGrade();
   drawMap();if(player.car){ctx.font='700 26px Arial';ctx.textAlign='right';ctx.fillStyle='#c5f46b';ctx.fillText(Math.round(Math.abs(player.car.velocity||0)*.35)+' km/h',w-35,h-235)}
 }
 
@@ -1283,12 +1458,16 @@ function completeContract(){
   notify('Doručeno: '+item.name+' · +'+item.reward.toLocaleString('cs-CZ')+' Kč · +'+item.xp+' XP');awardXp(item.xp);saveProgress();updateHud();return true;
 }
 function saveProgress(){
-  try{syncOwnedVehiclePositions();localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount,activeDistrictJob,completedDistrictJobs,inventory,educationState,policeKnowledge:{passed:policeKnowledgeState.passed,score:policeKnowledgeState.score},unlockedWeapons,gameplayLog,playerPosition:interior?interior.outside:{x:player.x,y:player.y,angle:player.angle}}));}catch{}
+  try{syncOwnedVehiclePositions();localStorage.setItem('street-life-progress-v1',JSON.stringify({version:1,startingCapital:STARTING_CASH,capitalGrant:STARTING_CASH,capitalGrantVersion:CAPITAL_GRANT_VERSION,life:lifeState,health:player.health,xp:player.xp,cash:player.cash,rep:player.rep,missionIndex,legal,complete,storyPath,activeContract,contractCount,activeDistrictJob,completedDistrictJobs,inventory,educationState,policeKnowledge:{passed:policeKnowledgeState.passed,score:policeKnowledgeState.score},unlockedWeapons,gameplayLog,socialState,marketWatchlist,playerPosition:interior?interior.outside:{x:player.x,y:player.y,angle:player.angle}}));}catch{}
 }
 function restoreProgress(){
   try{
     const saved=JSON.parse(localStorage.getItem('street-life-progress-v1')||'null');if(!saved||saved.version!==1)return;
     if(!['xp','cash','rep','missionIndex','contractCount'].every(key=>Number.isSafeInteger(saved[key])&&saved[key]>=0)||saved.missionIndex>missions.length-1||typeof saved.legal!=='boolean'||typeof saved.complete!=='boolean')return;
+    const startingCapitalMissing=!Number.isSafeInteger(saved.startingCapital)||saved.startingCapital<STARTING_CASH;
+    const capitalGrantMissing=!Number.isSafeInteger(saved.capitalGrant)||saved.capitalGrant<STARTING_CASH;
+    const capitalGrantVersionMissing=saved.capitalGrantVersion!==CAPITAL_GRANT_VERSION;
+    const shouldGrantStartingCapital=saved.cash<STARTING_CASH&&(startingCapitalMissing||capitalGrantMissing||capitalGrantVersionMissing);
     completedDistrictJobs=Array.isArray(saved.completedDistrictJobs)?[...new Set(saved.completedDistrictJobs.filter(id=>districtJobs.some(job=>job.id===id)))]:[];
     inventory=Array.isArray(saved.inventory)?saved.inventory.filter(item=>item&&inventoryCatalog[item.id]&&Number.isSafeInteger(item.qty)&&item.qty>0&&item.qty<=99).map(item=>({id:item.id,qty:item.qty})):baseInventory();
     if(!inventory.length)inventory=baseInventory();
@@ -1298,10 +1477,13 @@ function restoreProgress(){
     policeKnowledgeState={passed:Boolean(police.passed),active:false,index:0,score:Number.isSafeInteger(police.score)?Math.max(0,Math.min(20,police.score)):0};
     unlockedWeapons=Array.isArray(saved.unlockedWeapons)?[...new Set(saved.unlockedWeapons.filter(id=>policeWeapons.some(weapon=>weapon.id===id)))]:[];
     if(policeKnowledgeState.passed)for(const weapon of policeWeapons)if(!unlockedWeapons.includes(weapon.id))unlockedWeapons.push(weapon.id);
+    const social=saved.socialState&&typeof saved.socialState==='object'?saved.socialState:{};
+    socialState={followers:Number.isSafeInteger(social.followers)?Math.max(0,Math.min(99999,social.followers)):23,likes:Number.isSafeInteger(social.likes)?Math.max(0,Math.min(999999,social.likes)):0,postedDay:Number.isSafeInteger(social.postedDay)?Math.max(0,social.postedDay):0,streak:Number.isSafeInteger(social.streak)?Math.max(0,Math.min(999,social.streak)):0};
+    if(Array.isArray(saved.marketWatchlist)){const ids=[...new Set(saved.marketWatchlist.filter(id=>lifeSystem.assets[id]))].slice(0,8);if(ids.length)marketWatchlist=ids;}
     const savedLog=Array.isArray(saved.gameplayLog)?saved.gameplayLog.filter(item=>item&&typeof item.text==='string'&&item.text.length<=220).map((item,index)=>({day:Number.isSafeInteger(item.day)?item.day:1,text:item.text,system:Boolean(item.system),order:index+1})).filter(item=>!item.system):[];
     gameplayLog=[...featureLog.map((text,index)=>({day:1,text,system:true,order:index+1})),...savedLog].slice(-80);
     activeDistrictJob=districtJobs.some(job=>job.id===saved.activeDistrictJob&&!completedDistrictJobs.includes(job.id)&&(!job.requires||completedDistrictJobs.includes(job.requires)))?saved.activeDistrictJob:null;
-    lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;storyPath=['street','clean'].includes(saved.storyPath)?saved.storyPath:null;contractCount=saved.contractCount;
+    lifeState=lifeSystem.restore(saved.life);player.xp=saved.xp;player.cash=shouldGrantStartingCapital?STARTING_CASH:saved.cash;player.rep=saved.rep;missionIndex=saved.missionIndex;legal=saved.legal;complete=saved.complete;storyPath=['street','clean'].includes(saved.storyPath)?saved.storyPath:null;contractCount=saved.contractCount;
     if(Number.isFinite(saved.health)&&saved.health>=0&&saved.health<=100)player.health=saved.health;
     if(!storyPath&&missionIndex>firstChapterEnd)storyPath=missionIndex>=cleanChapterStart?'clean':'street';
     if(complete&&missionIndex<=firstChapterEnd){complete=false;activeContract=null;if(legal){storyPath='clean';missionIndex=cleanChapterStart}else{storyPath=null;missionIndex=firstChapterEnd}}
@@ -1312,6 +1494,8 @@ function restoreProgress(){
     const pos=saved.playerPosition;if(!interior&&pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.y)&&!collision(pos.x,pos.y,10)){player.x=pos.x;player.y=pos.y;player.angle=Number.isFinite(pos.angle)?pos.angle:0;camera.x=pos.x;camera.y=pos.y;}
     restoreOwnedVehicles();
     if(activeContract)player.heat=substances.find(item=>item.id===activeContract.substanceId).risk;
+    if(shouldGrantStartingCapital)recordLog('Startovní kapitál: account dorovnán na '+formatMoney(STARTING_CASH)+'.');
+    if(startingCapitalMissing||capitalGrantMissing||capitalGrantVersionMissing||shouldGrantStartingCapital)saveProgress();
   }catch{}
 }
 function setServiceMission(){missions[1]={title:'Poctivá směna',text:'Dojdi do autoservisu. Ještě dnes potřebují pomoc.',x:1070,y:315,label:'Pavel · autoservis',speaker:'PAVEL',dialog:'Potřebuju někoho na noční směnu. Tady máš devět stovek.',choices:[['Dokončit směnu. (+900 Kč)','deliver']]};}
@@ -1404,32 +1588,60 @@ function bankChoices(mobile = false) {
   }
 }
 
-let selectedStock='PMOB',stockBudget=1000;
+let selectedStock='PMOB',stockBudget=1000,marketWatchlist=['PMOB','PRGX','BETON'];
+const tradableKinds=['fiat','shitcoin','stock','fund'];
+function assetKindLabel(kind){return kind==='fiat'?'Měna':kind==='shitcoin'?'Krypto':kind==='fund'?'ETF':'Akcie'}
 function marketHistory(id,count=30){return Array.from({length:count},(_,i)=>{const tick=Math.max(0,(lifeState.day-1)*10+Math.floor(lifeState.elapsed/30)-(count-1-i));return lifeSystem.marketPrice({day:1+Math.floor(tick/10),elapsed:(tick%10)*30},id);});}
+function marketChange(id){const history=marketHistory(id,30),previous=history[history.length-2]||history[0],last=history[history.length-1]||previous;return previous?{history,previous,last,percent:(last/previous-1)*100,range:(Math.max(...history)-Math.min(...history))/Math.max(1,last)*100}:{history,previous:last,last,percent:0,range:0};}
+function toggleMarketWatch(id){
+  if(!lifeSystem.assets[id])return false;
+  if(marketWatchlist.includes(id))marketWatchlist=marketWatchlist.filter(item=>item!==id);
+  else marketWatchlist=[...marketWatchlist,id].slice(-8);
+  recordLog('Burza: watchlist upraven ('+marketWatchlist.join(', ')+').');
+  if(dialogOpen&&lifeMenu==='service'&&lifeServiceKind()==='exchange'){const menu=lifeMenu;closeContracts();openLifeMenu(menu);}
+  return marketWatchlist.includes(id);
+}
 function exchangeChoices(){
   const summary=document.createElement('div');summary.className='marketSummary';
   const cost=Object.values(lifeState.costBasis).reduce((sum,n)=>sum+n,0),worth=lifeSystem.portfolioValue(lifeState),pnl=worth-cost;
-  for(const [label,value]of [['VOLNÉ PENÍZE',formatMoney(lifeState.balance)],['PORTFOLIO',formatMoney(worth)],['OTEVŘENÝ ZISK / ZTRÁTA',(pnl>=0?'+':'')+formatMoney(pnl)],['UZAVŘENÝ ZISK / ZTRÁTA',formatMoney(lifeState.realizedPnL)]]){const card=document.createElement('div'),title=document.createElement('small'),number=document.createElement('strong');title.textContent=label;number.textContent=value;card.append(title,number);summary.append(card);}$('choices').append(summary);
-  choiceInfo('Herní burza · fiktivní firmy a ETF. Kotace se mění každých 30 sekund aktivní hry. Nákup 1 %, prodej 2 %; poplatky jsou započtené.');
+  for(const [label,value]of [['VOLNÉ PENÍZE',formatMoney(lifeState.balance)],['PORTFOLIO',formatMoney(worth)],['OTEVŘENÝ ZISK / ZTRÁTA',(pnl>=0?'+':'')+formatMoney(pnl)],['UZAVŘENÝ ZISK / ZTRÁTA',formatMoney(lifeState.realizedPnL)],['WATCHLIST',marketWatchlist.length+' aktiv']]){const card=document.createElement('div'),title=document.createElement('small'),number=document.createElement('strong');title.textContent=label;number.textContent=value;card.append(title,number);summary.append(card);}$('choices').append(summary);
+  choiceInfo('Praha Exchange · rozšířený trading terminál. Obchoduješ fiktivní akcie, ETF, měny a BetonCoin. Kotace se mění každých 30 sekund; nákup 1 %, prodej 2 %.');
   if(!lifeState.account){choiceInfo('Nejdřív si otevři bankovní účet v bance.');return;}
-  const stocks=lifeSystem.market(lifeState).filter(asset=>['stock','fund'].includes(asset.kind)),tickers=document.createElement('div');tickers.className='stockTickers';
-  for(const stock of stocks){const hist=marketHistory(stock.id),previous=hist[hist.length-2],change=(stock.price/previous-1)*100,button=document.createElement('button');button.className=stock.id===selectedStock?'selected':'';button.textContent=stock.id+' · '+stock.price.toFixed(2)+' Kč · '+(change>=0?'+':'')+change.toFixed(2)+' %';button.onclick=()=>{selectedStock=stock.id;closeContracts();openLifeMenu('service');};tickers.append(button);}$('choices').append(tickers);
-  const stock=stocks.find(item=>item.id===selectedStock)||stocks[0],history=marketHistory(stock.id),low=Math.min(...history)*.99,high=Math.max(...history)*1.01;
-  const points=history.map((price,i)=>(20+i*600/(history.length-1)).toFixed(1)+','+(155-(price-low)/(high-low)*120).toFixed(1)).join(' '),chart=document.createElement('div');chart.className='stockChart';
-  chart.innerHTML='<svg viewBox="0 0 640 185" role="img" aria-label="Historie kurzu '+stock.id+'"><path d="M20 35H620M20 95H620M20 155H620" stroke="#314553"/><polyline points="'+points+'" fill="none" stroke="#bdf071" stroke-width="3"/><text x="20" y="178" fill="#aab9c5" font-size="11">Historie kotací · 30 bodů</text><text x="480" y="22" fill="#bdf071" font-size="14">'+stock.price.toFixed(2)+' CZK</text></svg>';$('choices').append(chart);
-  const units=lifeState.portfolio[stock.id],basis=lifeState.costBasis[stock.id],value=Math.floor(units*stock.price/100);
-  choiceInfo(stock.name+' · '+lifeSystem.assets[stock.id].sector+' · držíš '+formatUnits(units)+' kusů · průměrná nákupní cena '+(units?basis*100/units:0).toFixed(2)+' Kč · výnos '+formatMoney(value-basis));
+  const stocks=lifeSystem.market(lifeState).filter(asset=>tradableKinds.includes(asset.kind));if(!stocks.some(stock=>stock.id===selectedStock))selectedStock='PMOB';
+  const watch=document.createElement('div');watch.className='marketWatchlist';
+  for(const id of marketWatchlist.filter(id=>stocks.some(stock=>stock.id===id))){const asset=stocks.find(stock=>stock.id===id),change=marketChange(id),button=document.createElement('button');button.textContent='★ '+id+' · '+asset.price.toFixed(2)+' · '+(change.percent>=0?'+':'')+change.percent.toFixed(2)+' %';button.onclick=()=>{selectedStock=id;closeContracts();openLifeMenu('service');};watch.append(button);}
+  if(watch.children.length)$('choices').append(watch);
+  const tickers=document.createElement('div');tickers.className='stockTickers';
+  for(const stock of stocks){const change=marketChange(stock.id),button=document.createElement('button');button.className=(stock.id===selectedStock?'selected ':'')+(change.percent>=0?'up':'down');button.textContent=stock.id+' · '+assetKindLabel(stock.kind)+' · '+stock.price.toFixed(2)+' Kč · '+(change.percent>=0?'+':'')+change.percent.toFixed(2)+' %';button.onclick=()=>{selectedStock=stock.id;closeContracts();openLifeMenu('service');};tickers.append(button);}$('choices').append(tickers);
+  const stock=stocks.find(item=>item.id===selectedStock)||stocks[0],change=marketChange(stock.id),history=change.history,low=Math.min(...history)*.99,high=Math.max(...history)*1.01,range=Math.max(.01,high-low);
+  const points=history.map((price,i)=>(20+i*600/(history.length-1)).toFixed(1)+','+(155-(price-low)/range*120).toFixed(1)).join(' '),area='20,155 '+points+' 620,155',chart=document.createElement('div');chart.className='stockChart';
+  chart.innerHTML='<svg viewBox="0 0 640 185" role="img" aria-label="Historie kurzu '+stock.id+'"><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#bdf071" stop-opacity=".28"/><stop offset="1" stop-color="#bdf071" stop-opacity="0"/></linearGradient></defs><path d="M20 35H620M20 95H620M20 155H620" stroke="#314553"/><polyline points="'+area+'" fill="url(#chartFill)" stroke="none"/><polyline points="'+points+'" fill="none" stroke="#bdf071" stroke-width="3"/><text x="20" y="178" fill="#aab9c5" font-size="11">Historie kotací · volatilita '+change.range.toFixed(1)+' %</text><text x="448" y="22" fill="#bdf071" font-size="14">'+stock.id+' · '+stock.price.toFixed(2)+' CZK · '+(change.percent>=0?'+':'')+change.percent.toFixed(2)+' %</text></svg>';$('choices').append(chart);
+  const units=lifeState.portfolio[stock.id]||0,basis=lifeState.costBasis[stock.id]||0,value=Math.floor(units*stock.price/100),average=units?basis*100/units:0,positionPnl=value-basis;
+  const ticket=document.createElement('div');ticket.className='tradingDeck';
+  for(const [label,valueText] of [['TITUL',stock.name],['TYP',assetKindLabel(stock.kind)+(lifeSystem.assets[stock.id].sector?' · '+lifeSystem.assets[stock.id].sector:'')],['POZICE',formatUnits(units)+' ks · '+formatMoney(value)],['PRŮMĚR',average.toFixed(2)+' Kč'],['P/L POZICE',(positionPnl>=0?'+':'')+formatMoney(positionPnl)],['RIZIKO',change.range<5?'nízké':change.range<18?'střední':'vysoké']]){const card=document.createElement('p');card.innerHTML='<small>'+label+'</small><strong>'+valueText+'</strong>';ticket.append(card);}$('choices').append(ticket);
   const label=document.createElement('label'),input=document.createElement('input');label.className='orderBudget';label.textContent='Částka objednávky v Kč';input.type='number';input.min='100';input.max='1000000';input.step='100';input.value=String(stockBudget);input.oninput=()=>{stockBudget=Number(input.value);};label.append(input);$('choices').append(label);
-  const buy=document.createElement('button');buy.textContent='Koupit '+stock.id+' · potvrdit tržní objednávku';buy.onclick=()=>submitExchangeOrder(stock.id,'buy');$('choices').append(buy);
-  lifeButton('Prodat celou pozici '+stock.id+' · odhad '+formatMoney(Math.floor(value*.98)),'trade',{type:'sell',asset:stock.id,units:'all'},!units);
+  const actions=document.createElement('div');actions.className='orderActions';
+  for(const amount of [500,1000,5000,10000]){const button=document.createElement('button');button.textContent=formatMoney(amount);button.onclick=()=>{stockBudget=amount;input.value=String(amount);};actions.append(button);}
+  const watchButton=document.createElement('button');watchButton.textContent=(marketWatchlist.includes(stock.id)?'Odebrat z watchlistu':'Přidat do watchlistu')+' · '+stock.id;watchButton.onclick=()=>toggleMarketWatch(stock.id);actions.append(watchButton);
+  $('choices').append(actions);
+  const tradeActions=document.createElement('div');tradeActions.className='orderActions primaryOrders';
+  const buy=document.createElement('button');buy.textContent='Koupit market · '+stock.id;buy.onclick=()=>submitExchangeOrder(stock.id,'buy');tradeActions.append(buy);
+  for(const [labelText,portion] of [['Prodat 25 %',.25],['Prodat 50 %',.5],['Prodat vše',1]]){const sell=document.createElement('button');sell.textContent=labelText+' · odhad '+formatMoney(Math.floor(value*portion*.98));sell.disabled=!units;sell.onclick=()=>submitExchangeOrder(stock.id,'sell',portion);tradeActions.append(sell);}
+  $('choices').append(tradeActions);
+  const positions=document.createElement('div');positions.className='portfolioRows';
+  for(const asset of stocks.filter(item=>(lifeState.portfolio[item.id]||0)>0)){const row=document.createElement('p'),held=lifeState.portfolio[asset.id],assetValue=Math.floor(held*asset.price/100),assetBasis=lifeState.costBasis[asset.id]||0;row.textContent=asset.id+' · '+formatUnits(held)+' ks · '+formatMoney(assetValue)+' · P/L '+((assetValue-assetBasis)>=0?'+':'')+formatMoney(assetValue-assetBasis);positions.append(row);}
+  if(positions.children.length){choiceInfo('Portfolio pozice');$('choices').append(positions);}
   choiceInfo('Výpis provedených obchodů');
   for(const order of lifeState.orders.slice(-6).reverse())choiceInfo('Den '+order.day+' · '+(order.side==='buy'?'NÁKUP':'PRODEJ')+' '+order.id+' · '+formatUnits(order.units)+' ks @ '+order.price.toFixed(2)+' Kč · '+formatMoney(order.total)+' · poplatek '+formatMoney(order.fee));
   if(!lifeState.orders.length)choiceInfo('Zatím žádná objednávka. Vyber titul, nastav částku a potvrď nákup.');
 }
-function submitExchangeOrder(id,side){
-  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='exchange'||distance(player,lifeServicePoint())>45||!['stock','fund'].includes(lifeSystem.assets[id]?.kind))return false;
-  if(side!=='buy'||!Number.isSafeInteger(stockBudget)||stockBudget<100||stockBudget>1000000||!lifeSystem.act(lifeState,player,'trade',{type:'buy',asset:id,czk:stockBudget})){notify('Zkontroluj částku a zůstatek účtu.');return false;}
-  saveProgress();updateHud();notify('Objednávka provedena · '+id);closeContracts();openLifeMenu('service');return true;
+function submitExchangeOrder(id,side,portion=1){
+  if(!dialogOpen||lifeMenu!=='service'||lifeServiceKind()!=='exchange'||distance(player,lifeServicePoint())>45||!tradableKinds.includes(lifeSystem.assets[id]?.kind))return false;
+  let ok=false;
+  if(side==='buy')ok=Number.isSafeInteger(stockBudget)&&stockBudget>=100&&stockBudget<=1000000&&lifeSystem.act(lifeState,player,'trade',{type:'buy',asset:id,czk:stockBudget});
+  else if(side==='sell'){const holding=lifeState.portfolio[id]||0,units=portion>=1?holding:Math.max(1,Math.floor(holding*portion));ok=lifeSystem.act(lifeState,player,'trade',{type:'sell',asset:id,units});}
+  if(!ok){notify('Objednávka neprošla. Zkontroluj částku, zůstatek nebo pozici.');return false;}
+  saveProgress();updateHud();notify((side==='sell'?'Prodej':'Nákup')+' proveden · '+id);const menu=lifeMenu;closeContracts();openLifeMenu(menu);return true;
 }
 function dealerOffers(){const brand=interior?.building.name.split(' ')[0].toLowerCase();return lifeSystem.vehicleCatalog.filter(model=>model.dealer===brand);}
 function freeDealerSlot(building){
@@ -1499,6 +1711,34 @@ function openFakeMessages(){
   $('speaker').textContent='TELEFON · TEXTOVÝ INBOX';$('dialogTitle').textContent='Fake zprávy z města';
   $('dialogText').textContent='Krátké textové zprávy jsou fikce uvnitř hry. Slouží jako atmosféra, rady a drobné náznaky aktivit ve městě.';
   for(const message of fakeTextMessages)choiceInfo(message.time+' · '+message.from+': '+message.text);
+  addConversationExitButtons({allowLeave:false});
+  return true;
+}
+function socialPostConfig(kind){
+  if(kind==='work')return { label:'Hledám čistou směnu', text:'Dneska hledám normální práci. Servis, sklad, cokoliv férového.', followers:3, likes:9, rep:1 };
+  if(kind==='study')return { label:'Sdílet studijní progress', text:'Další hodina učení za mnou. Pomalu, ale už to není jen sen.', followers:4, likes:12, rep:2 };
+  return { label:'Krátký status z města', text:'Město je mokré, hlučné a pořád jede. Držím kurz.', followers:2, likes:6, rep:1 };
+}
+function publishSocialPost(kind='city'){
+  if(!dialogOpen||lifeMenu!=='phone'||socialState.postedDay===lifeState.day)return false;
+  const post=socialPostConfig(kind),bonus=Math.min(8,Math.floor(player.rep/15));
+  socialState.streak=socialState.postedDay===lifeState.day-1?socialState.streak+1:1;
+  socialState.postedDay=lifeState.day;socialState.followers=Math.min(99999,socialState.followers+post.followers+bonus);socialState.likes=Math.min(999999,socialState.likes+post.likes+bonus*2);
+  player.rep+=post.rep;lifeState.messages.push({from:'BetonNet',text:'Status publikován: '+post.text,day:lifeState.day});lifeState.messages=lifeState.messages.slice(-80);
+  recordLog('BetonNet: publikován status "'+post.label+'" · +'+(post.followers+bonus)+' sledujících.');
+  saveProgress();updateHud();notify('BetonNet · status venku · +'+post.rep+' respekt');closeContracts();openSocialNetwork();return true;
+}
+function openSocialNetwork(){
+  if(!started||paused||dialogOpen)return false;
+  lifeMenu='phone';dialogOpen=true;keys.clear();$('dialog').classList.remove('hidden');$('choices').replaceChildren();
+  $('speaker').textContent='TELEFON · BETONNET';$('dialogTitle').textContent='Sociální síť města';
+  $('dialogText').textContent='Fiktivní sociální síť pro atmosféru a reputaci. Sledující '+socialState.followers+' · lajky '+socialState.likes+' · série '+socialState.streak+' dní.';
+  const profile=document.createElement('div');profile.className='socialProfile';
+  for(const [label,value] of [['SLEDUJÍCÍ',socialState.followers],['LAJKY',socialState.likes],['DNEŠNÍ POST',socialState.postedDay===lifeState.day?'publikován':'čeká'],['SÉRIE',socialState.streak+' dní']]){const card=document.createElement('p');card.innerHTML='<small>'+label+'</small><strong>'+value+'</strong>';profile.append(card);}$('choices').append(profile);
+  const actions=document.createElement('div');actions.className='orderActions';
+  for(const kind of ['city','work','study']){const config=socialPostConfig(kind),button=document.createElement('button');button.textContent=config.label;button.disabled=socialState.postedDay===lifeState.day;button.onclick=()=>publishSocialPost(kind);actions.append(button);}$('choices').append(actions);
+  const feed=document.createElement('div');feed.className='socialFeed';
+  for(const post of fakeSocialPosts){const item=document.createElement('p');item.innerHTML='<strong>'+post.author+' <small>'+post.handle+'</small></strong><span>'+post.text+'</span><em>#'+post.tag+' · '+(post.heat+lifeState.day)+' reakcí</em>';feed.append(item);}$('choices').append(feed);
   addConversationExitButtons({allowLeave:false});
   return true;
 }
@@ -1576,6 +1816,7 @@ function openLifeMenu(mode) {
   else if (mode !== 'phone') for (const item of lifeSystem.products) lifeButton(item.name + ' · ' + item.price + ' Kč · +' + item.health + ' zdraví', 'buy', item.id, player.cash < item.price);
   if (mode === 'phone') {
     const fakeInbox=document.createElement('button');fakeInbox.textContent='Fake zprávy · textový inbox';fakeInbox.onclick=()=>{closeContracts();openFakeMessages();};$('choices').append(fakeInbox);
+    const social=document.createElement('button');social.textContent='BetonNet · sociální síť';social.onclick=()=>{closeContracts();openSocialNetwork();};$('choices').append(social);
     for (const item of lifeState.messages.slice(-8)) {
       const message = document.createElement('p'); message.textContent = 'Den ' + item.day + ' · ' + item.from + ': ' + item.text; $('choices').append(message);
     }

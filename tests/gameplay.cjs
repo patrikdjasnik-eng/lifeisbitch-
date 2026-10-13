@@ -7,6 +7,7 @@ if(!css.includes('.playerPanel')||!css.includes('#menu #accountButton'))throw Er
 const context={console,innerWidth:1440,innerHeight:900,devicePixelRatio:1,localStorage:{getItem(k){return storage.get(k)??null},setItem(k,v){storage.set(k,v)}},document:{querySelector(){return canvas},getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelectorAll(){return []},createElement(){return el()}},addEventListener(){},requestAnimationFrame(){}};
 context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('web/life-system.js','utf8'),context);vm.runInContext(fs.readFileSync('web/game.js','utf8'),context);
 vm.runInContext(`
+if(player.cash!==15000)throw Error('Starting capital missing');
 if(missions.length<14)throw Error('Extended story missions missing');
 const markers=importantNpcMarkers(true);
 for(const short of ['CÍL','BANK','OSVČ','PČR','JÍDLO','POSTEL'])if(!markers.some(marker=>marker.short===short))throw Error('Missing important NPC marker: '+short);
@@ -18,12 +19,16 @@ const lightCar={x:signal.x-40,y:signal.y,axis:true,speed:50,parked:false};
 if(nextTrafficLight(lightCar)?.light!==signal)throw Error('Next traffic light detection failed');
 if(!emergencyVehicles.some(car=>car.service==='fire')||!emergencyVehicles.some(car=>car.service==='ambulance')||!emergencyVehicles.some(car=>car.service==='police'))throw Error('Emergency vehicles missing');
 if(!people.some(person=>person.role==='firefighter')||!people.some(person=>person.role==='paramedic'))throw Error('Emergency NPCs missing');
+if(typeof drawRoadPolish!=='function'||typeof drawAmbientReflections!=='function'||typeof drawPremiumLightPass!=='function'||typeof drawCinematicGrade!=='function'||typeof drawRoadSurfaceDecals!=='function')throw Error('Graphic polish functions missing');
 const crashA={x:signal.x+120,y:signal.y,angle:0,axis:true,speed:70,color:'#777',parked:false};
 const crashB={x:signal.x+145,y:signal.y,angle:0,axis:true,speed:30,color:'#888',parked:false};
 cars.push(crashA,crashB);const incident=createIncident(signal.x+132,signal.y,[crashA,crashB],'test');
 if(!incident||!crashA.crashed||!incident.assigned.police||!incident.assigned.fire||!incident.assigned.ambulance)throw Error('Incident dispatch failed');
-incident.assigned.police.x=incident.x;incident.assigned.police.y=incident.y;updateEmergencyServices(.2);
-if(!incident.arrived.police||!incident.crew.some(member=>member.service==='police'))throw Error('Police response failed');
+if(distance(crashA,crashB)<45)throw Error('Incident vehicles overlap');
+const policeTarget=incidentSceneTarget(incident,'police'),fireTarget=incidentSceneTarget(incident,'fire'),ambulanceTarget=incidentSceneTarget(incident,'ambulance');
+if(distance(policeTarget,fireTarget)<58||distance(policeTarget,ambulanceTarget)<58||distance(fireTarget,ambulanceTarget)<58)throw Error('Emergency scene slots overlap');
+incident.assigned.police.x=policeTarget.x;incident.assigned.police.y=policeTarget.y;updateEmergencyServices(.2);
+if(!incident.arrived.police||distance(incident.assigned.police,incident)<45||!incident.crew.some(member=>member.service==='police'))throw Error('Police response failed');
 if(phaseFromHour(6)!=='morning'||phaseFromHour(13)!=='day'||phaseFromHour(20)!=='evening'||phaseFromHour(2)!=='night')throw Error('Prague day phase mapping failed');
 if(weatherFromCode(61).condition!=='rain'||weatherFromCode(71).condition!=='snow'||weatherFromCode(45).condition!=='fog'||weatherFromCode(0).condition!=='clear')throw Error('Weather code mapping failed');
 terrainTiles.set('cached', {});
@@ -39,10 +44,15 @@ if(storyPath!=='clean'||missionIndex!==cleanChapterStart||!legal||complete)throw
 missionIndex=missions.length-1;complete=false;choose('cleanEnd');if(!complete)throw Error('Clean ending failed');
 localStorage.setItem('street-life-progress-v1', JSON.stringify({version:1,life:lifeSystem.create(),health:88,xp:0,cash:1200,rep:0,missionIndex:4,legal:false,complete:true,contractCount:0}));
 missionIndex=0;complete=true;legal=false;storyPath='street';restoreProgress();
-if(complete||missionIndex!==4||storyPath!==null)throw Error('Old street save migration failed');
+if(complete||missionIndex!==4||storyPath!==null||player.cash!==15000)throw Error('Old street save migration failed');
 localStorage.setItem('street-life-progress-v1', JSON.stringify({version:1,life:lifeSystem.create(),health:88,xp:0,cash:1200,rep:0,missionIndex:4,legal:true,complete:true,contractCount:0}));
 missionIndex=0;complete=true;legal=false;storyPath=null;restoreProgress();
-if(complete||missionIndex!==cleanChapterStart||storyPath!=='clean'||!legal)throw Error('Old clean save migration failed');
+if(complete||missionIndex!==cleanChapterStart||storyPath!=='clean'||!legal||player.cash!==15000)throw Error('Old clean save migration failed');
+localStorage.setItem('street-life-progress-v1', JSON.stringify({version:1,startingCapital:15000,capitalGrant:15000,life:lifeSystem.create(),health:88,xp:0,cash:800,rep:0,missionIndex:4,legal:false,complete:false,contractCount:0}));
+player.cash=0;restoreProgress();const capitalSave=JSON.parse(localStorage.getItem('street-life-progress-v1'));
+if(player.cash!==15000||capitalSave.capitalGrant!==15000||capitalSave.capitalGrantVersion!==2)throw Error('Partial capital grant migration failed');
+capitalSave.cash=800;localStorage.setItem('street-life-progress-v1', JSON.stringify(capitalSave));player.cash=0;restoreProgress();
+if(player.cash!==800)throw Error('Capital grant repeated after spend');
 missionIndex=0;complete=false;legal=false;storyPath=null;
 `,context);
 console.log('PASS: extended story chain, old save migration, Prague clock phases, weather code mapping and cache refresh');
@@ -88,6 +98,8 @@ const policeStation=buildings.find(b=>b.name==='POLICIE ČR'),library=buildings.
 if(!policeStation||!library||!school||!internet||!officeForJobs)throw Error('Education/police buildings missing');
 missionIndex=0;complete=false;dialogOpen=false;showDialog();if(!document.getElementById('choices').children.some(child=>child.textContent==='Ukončit konverzaci'))throw Error('Story dialog close option missing');closeContracts();
 if(!openFakeMessages()||!document.getElementById('choices').children.some(child=>String(child.textContent).includes('Eliška')))throw Error('Fake text messages missing');closeContracts();
+if(!openSocialNetwork()||fakeSocialPosts.length<5||!document.getElementById('choices').children.length)throw Error('Social network feed missing');
+const followersBefore=socialState.followers,repBefore=player.rep;if(!publishSocialPost('work')||socialState.followers<=followersBefore||player.rep<=repBefore||publishSocialPost('study'))throw Error('Social post/streak limits failed');closeContracts();
 enterBuilding(policeStation);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='police')throw Error('Police service menu');
 if(!document.getElementById('choices').children.some(child=>child.textContent==='Ukončit konverzaci')||!document.getElementById('choices').children.some(child=>child.textContent==='Opustit budovu'))throw Error('NPC dialog exit/leave buttons missing');
 if(!startPoliceKnowledgeTest()||policeKnowledgeQuestions.length!==20)throw Error('Police knowledge test did not start');
@@ -107,8 +119,8 @@ if(!document.getElementById('choices').children.some(child=>child.textContent===
 closeContracts();interior=null;player.xp=levelThresholds[5];enterBuilding(officeForJobs);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||!takeBetterJob('automation'))throw Error('Better job unavailable after education');
 if(player.cash<=5000||!gameplayLog.some(item=>item.text.includes('Automatizace objednávek')))throw Error('Better job payout/log missing');
 closeContracts();interior=null;if(!openInventory()||!dialogOpen)throw Error('Inventory dialog missing');closeContracts();if(!openLogList()||!gameplayLog.some(item=>item.text.includes('Zahradní Město')))throw Error('Feature log missing');
-saveProgress();educationState={studyPoints:0,highSchool:false,method:null,betterJobs:false};policeKnowledgeState={passed:false,active:false,index:0,score:0};unlockedWeapons=[];inventory=[];restoreProgress();
-if(!educationState.highSchool||!policeKnowledgeState.passed||!hasInventoryItem('trainingPistol'))throw Error('Education/police inventory save failed');
+saveProgress();educationState={studyPoints:0,highSchool:false,method:null,betterJobs:false};policeKnowledgeState={passed:false,active:false,index:0,score:0};unlockedWeapons=[];inventory=[];socialState={followers:0,likes:0,postedDay:0,streak:0};restoreProgress();
+if(!educationState.highSchool||!policeKnowledgeState.passed||!hasInventoryItem('trainingPistol')||socialState.followers<=0)throw Error('Education/police/social inventory save failed');
 `,context);
 console.log('PASS: police 20-question weapon unlock, expanded inventory/log, high school, self-study and better jobs');
 
@@ -172,11 +184,15 @@ activeDistrictJob=null;lifeState=lifeSystem.create();player.cash=900000;player.c
 lifeSystem.act(lifeState,player,'account');lifeSystem.act(lifeState,player,'deposit',700000);
 const broker=buildings.find(b=>b.name==='BURZA PRAHA');if(!broker||collision(doorFor(broker).x,doorFor(broker).y,10))throw Error('Exchange entrance');
 enterBuilding(broker);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='exchange')throw Error('Exchange terminal');
+if(!lifeSystem.market(lifeState).some(asset=>asset.id==='BETON'&&tradableKinds.includes(asset.kind)))throw Error('Expanded exchange assets missing');
+if(toggleMarketWatch('BETON')!==false||toggleMarketWatch('BETON')!==true)throw Error('Watchlist toggle failed');
 stockBudget=1000;if(!submitExchangeOrder('PMOB','buy')||lifeState.portfolio.PMOB<=0||lifeState.costBasis.PMOB!==1000||lifeState.orders.length!==1||lifeState.balance!==699000)throw Error('Stock UI order');
+const afterBuyUnits=lifeState.portfolio.PMOB,afterBuyBalance=lifeState.balance;if(!submitExchangeOrder('PMOB','sell',.5)||lifeState.portfolio.PMOB<=0||lifeState.portfolio.PMOB>=afterBuyUnits||lifeState.balance<=afterBuyBalance||lifeState.orders.length!==2)throw Error('Partial sell order failed');
+stockBudget=500;if(!submitExchangeOrder('BETON','buy')||lifeState.portfolio.BETON<=0||lifeState.orders.at(-1).id!=='BETON')throw Error('Exchange crypto order failed');
 stockBudget=-1;const unchanged=lifeState.balance;if(submitExchangeOrder('PMOB','buy')||lifeState.balance!==unchanged)throw Error('Invalid order budget');
 player.x+=90;stockBudget=1000;if(submitExchangeOrder('PMOB','buy'))throw Error('Remote order');Object.assign(player,lifeServicePoint());
 const oldQuote=lifeSystem.marketPrice(lifeState,'PMOB');lifeState.elapsed=60;if(oldQuote===lifeSystem.marketPrice(lifeState,'PMOB'))throw Error('Quote clock frozen');
-if(!lifeSystem.act(lifeState,player,'trade',{type:'sell',asset:'PMOB',units:'all'})||lifeState.costBasis.PMOB!==0||lifeState.orders.length!==2||!Number.isSafeInteger(lifeState.realizedPnL))throw Error('P/L accounting');
+if(!lifeSystem.act(lifeState,player,'trade',{type:'sell',asset:'PMOB',units:'all'})||lifeState.costBasis.PMOB!==0||lifeState.orders.length!==4||!Number.isSafeInteger(lifeState.realizedPnL))throw Error('P/L accounting');
 closeContracts();interior=null;
 for(const name of ['BAVARIA','VIER','STERN','NORD']){const b=buildings.find(item=>item.name===name+' AUTOSALON');if(!b||collision(doorFor(b).x,doorFor(b).y,10))throw Error('Dealer entrance');enterBuilding(b);Object.assign(player,lifeServicePoint());if(!openLifeMenu('service')||lifeServiceKind()!=='dealer'||!dealerOffers().length)throw Error('Dealer NPC catalog');closeContracts();interior=null;}
 const bavaria=buildings.find(b=>b.name==='BAVARIA AUTOSALON');enterBuilding(bavaria);Object.assign(player,lifeServicePoint());openLifeMenu('service');
