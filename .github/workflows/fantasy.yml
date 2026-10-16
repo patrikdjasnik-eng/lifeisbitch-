@@ -1,0 +1,29 @@
+name: Fantasy world checks
+on:
+  pull_request:
+  push:
+    branches: [feat/fantasy-open-world]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gameplay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: python backend/test_accounts.py
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fantasy-browser-screenshots
+          path: test-results/
+          if-no-files-found: ignore

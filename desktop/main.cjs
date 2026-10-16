@@ -10,6 +10,7 @@ let updateBusy = false;
 let gameRoot;
 const updater = require('./updater.cjs');
 const fs = require('node:fs');
+if (smoke) app.setPath('userData', fs.mkdtempSync(path.join(app.getPath('temp'), 'rift-smoke-')));
 function log(message) {
   try { const folder = app.getPath('userData'); fs.mkdirSync(folder, { recursive: true }); fs.appendFileSync(path.join(folder, 'startup.log'), new Date().toISOString() + ' ' + message + '\n'); } catch (error) { console.error(error); }
 }
@@ -29,7 +30,7 @@ function assetPath(url) {
 async function createWindow() {
   gameWindow = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
-    title: 'Life Is Bitch · Betonové sny', backgroundColor: '#080c11',
+    title: 'Life Is Bitch · Kroniky trhliny', backgroundColor: '#101c24',
     show: true, autoHideMenuBar: true, icon: path.join(__dirname, 'icon-beta.ico'),
     webPreferences: { preload: path.join(__dirname, 'game-preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true }
   });
@@ -52,30 +53,24 @@ async function createWindow() {
   gameWindow.show();
   if (smoke) {
     const result = await gameWindow.webContents.executeJavaScript(`new Promise(resolve => {
-      if (document.getElementById('characterName')) document.getElementById('characterName').value = 'Smoke Tester';
-      document.getElementById('start').click();
-      setTimeout(() => resolve({
-        scene: !!window.streetLifeScene,
-        started: typeof started !== 'undefined' && started,
-        canvas: document.getElementById('game').width > 0,
-        renderer: !!window.streetLifeRenderer
-      }), 3000);
+      const deadline = Date.now() + 20000;
+      let clicked = false;
+      const poll = setInterval(() => {
+        if (window.fantasyGame && !clicked) {
+          document.getElementById('characterName').value = 'Smoke Tester';
+          document.getElementById('start').click(); clicked = true;
+        }
+        if ((window.fantasyGame?.inspect().started && window.streetLifeRenderer.renderer.info.render.calls > 0) || Date.now() > deadline) {
+          clearInterval(poll);
+          resolve({ scene: !!window.streetLifeScene, started: !!window.started, canvas: document.getElementById('game').width > 0, renderer: !!window.streetLifeRenderer });
+        }
+      }, 100);
     })`);
-    result.services = await gameWindow.webContents.executeJavaScript(`new Promise(resolve => {
-      const shop = buildings.find(b => b.name === 'ŘEZNICTVÍ');
-      enterBuilding(shop);
-      const point = butcherPoint(); player.x = point.x; player.y = point.y;
-      player.cash = 100; player.health = 40;
-      showButcherShop();
-      setTimeout(() => {
-        const bought = buyButcherProduct('roll') && player.cash === 55 && player.health === 48;
-        const exit = interiorPoints().exit; player.x = exit.x; player.y = exit.y; useInterior();
-        const stop = transitStops[0]; player.x = stop.x; player.y = stop.y;
-        showTransitMenu(stop);
-        const rode = rideTransit(1) && player.cash === 15;
-        resolve(bought && rode);
-      }, 500);
-    })`);
+    result.services = await gameWindow.webContents.executeJavaScript(`(() => {
+      const game = window.fantasyGame?.inspect();
+      document.getElementById('inventoryButton').click();
+      return game?.snapshot?.self?.level === 1 && game.snapshot.enemies.length > 0 && document.getElementById('panel').open;
+    })()`);
     log('Desktop smoke: ' + JSON.stringify(result));
     console.log('Desktop smoke:', JSON.stringify(result));
     app.exit(result.scene && result.started && result.canvas && result.services ? 0 : 1);
@@ -117,7 +112,7 @@ app.whenReady().then(async () => {
     catch (error) { console.error(error); return new Response('Not found', { status: 404 }); }
   });
   gameRoot = path.join(app.getAppPath(), 'web');
-  if (smoke) await createWindow();
+  if (smoke || !app.isPackaged || process.argv.includes('--direct')) await createWindow();
   else await createLauncher();
 }).catch(error => {
   log(error.stack || error.message);

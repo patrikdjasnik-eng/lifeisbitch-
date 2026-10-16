@@ -3,3 +3,9 @@ android/local.properties
 **/build/
 *.jks
 *.keystore
+node_modules/
+windows-dist/
+server/data/
+test-results/
+__pycache__/
+*.pyc
