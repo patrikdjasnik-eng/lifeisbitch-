@@ -4,6 +4,10 @@ Hratelný základ otevřeného fantasy RPG. Město, domy, auta, dopravu a městs
 
 Tato verze je **online RPG prototyp**, nikoli hotové produkční MMORPG. Obsahuje skutečné společné hraní přes autoritativní server, ale ještě nemá rozsáhlou produkční infrastrukturu, cechy, obchodování mezi hráči, PvP, profesionální modely ani animace z motion capture. Kapacita tisíců hráčů není ověřená.
 
+![Vývojová 3D scéna ruin](docs/screenshots/ruins.png)
+
+Snímek skutečného rendereru z vizuálního testu: samostatná testovací postava na úrovni 8, standardní grafika se stíny. Výtvarné podklady a finální prompt vlastní textury vytvořené vestavěným imagegen jsou v [web/assets/README.md](web/assets/README.md); samotná textura je `web/assets/oak-foliage.png`.
+
 ## Rychlé spuštění ve Windows
 
 Nainstaluj Node.js 24 nebo novější. V PowerShellu ve složce projektu:
