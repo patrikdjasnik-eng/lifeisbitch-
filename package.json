@@ -1,20 +1,25 @@
 {
   "name": "life-is-bitch",
-  "version": "0.1.6",
-  "description": "Life Is Bitch: Betonové sny — offline game",
+  "version": "0.2.0",
+  "description": "Life Is Bitch: Kroniky trhliny — open-world fantasy RPG",
   "author": "Rabbit Hollow",
   "license": "UNLICENSED",
   "main": "desktop/main.cjs",
+  "engines": { "node": ">=24" },
   "scripts": {
+    "start": "node server/world-server.cjs",
     "desktop:start": "electron .",
     "desktop:smoke": "electron . --smoke",
     "desktop:build": "electron-builder --win --x64 --dir --publish never",
-    "test": "node tests/gameplay.cjs && node tests/updater.cjs && node tests/character.cjs",
+    "test": "node --test tests/world.cjs tests/server.cjs && node tests/updater.cjs && node tests/character.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "screenshots": "node tests/visual.cjs",
     "desktop:installer": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "44.7.0",
-    "electron-builder": "26.0.12"
+    "electron-builder": "26.0.12",
+    "playwright": "1.64.1"
   },
   "build": {
     "appId": "cz.rabbithollow.lifeisbitch",
@@ -56,5 +61,8 @@
     "portable": {
       "artifactName": "Life-Is-Bitch-Portable-${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }

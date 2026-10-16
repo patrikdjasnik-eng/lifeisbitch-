@@ -2,138 +2,78 @@
 <html lang="cs">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Life Is Bitch · Betonové sny</title>
-  <link rel="stylesheet" href="style.css?v=game-maps-1">
-  <link rel="stylesheet" href="character.css">
-  <link rel="stylesheet" href="accounts.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#141d22">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'">
+  <title>Life Is Bitch · Kroniky trhliny</title>
+  <link rel="stylesheet" href="fantasy.css">
 </head>
 <body>
-  <canvas id="game" aria-label="Herní město"></canvas>
-  <div class="vignette"></div>
-  <header>
-    <div class="brand">LIFE <span>IS BITCH</span><small>BETONOVÉ SNY · <em id="renderMode">2D</em></small></div>
-    <div class="stats">
-      <span>HOTOVOST <b id="cash">1 200 Kč</b></span>
-      <span>ZDRAVÍ <b id="health">100/100</b></span>
-      <span>LEVEL <b id="level">1</b></span>
-      <span>RESPEKT <b id="rep">0</b></span>
-      <span>POZORNOST <b id="heat">☆☆☆☆☆</b></span>
-      <button id="pause" aria-label="Pozastavit">Ⅱ</button>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="sword" viewBox="0 0 32 32"><path d="m6 27 5-5m-4-4 7 7m-4-7L24 4l4 0 0 4-14 14M4 28l3-3"/></symbol>
+    <symbol id="magic" viewBox="0 0 32 32"><path d="m16 3 4 9 9 4-9 4-4 9-4-9-9-4 9-4zM5 3v5M3 5h5M25 25v5m-2-2h6"/></symbol>
+    <symbol id="bow" viewBox="0 0 32 32"><path d="M5 4c26-2 25 24 23 24L5 4m0 0 2 23L28 28M4 28 25 7m-5 0h5v5"/></symbol>
+    <symbol id="dash" viewBox="0 0 32 32"><path d="m15 3 10 12-9 14 3-12H9zM3 9h7M1 16h8M4 24h6"/></symbol>
+    <symbol id="potion" viewBox="0 0 32 32"><path d="M12 3h8v5l-1 1v4c11 9 8 15-3 15S2 22 13 13V9l-1-1zM9 20h14M14 6h4"/></symbol>
+    <symbol id="bag" viewBox="0 0 32 32"><path d="M7 12h18l2 16H5zM11 12V7a5 5 0 0 1 10 0v5M5 20h22M13 18v4h6v-4"/></symbol>
+    <symbol id="map-icon" viewBox="0 0 32 32"><path d="m3 6 9-3 9 4 8-3v23l-8 3-9-4-9 3zM12 3v23M21 7v23"/></symbol>
+    <symbol id="quest-icon" viewBox="0 0 32 32"><path d="M8 3h18v23H8a3 3 0 0 0 0 6M8 3a4 4 0 0 0-4 4v22m9-20h8m-8 5h8m-8 5h5M16 26v6"/></symbol>
+  </defs></svg>
+  <canvas id="game" aria-label="3D svět Kroniky trhliny"></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div id="loading" role="status">Probouzím údolí…</div>
+  <div id="fatal" hidden role="alert"><h1>Svět se nepodařilo vykreslit</h1><p id="fatalText"></p><button id="retry">Zkusit znovu</button></div>
+
+  <section id="menu" class="menu" aria-label="Výběr postavy">
+    <div class="menu-content">
+      <div class="eyebrow">RABBIT HOLLOW <span>·</span> LIFE IS BITCH</div>
+      <div class="ornament">✦</div>
+      <h1>KRONIKY<br><em>TRHLINY</em></h1>
+      <p class="intro">Staré brány se znovu otevřely.<br>Vstup do světa, který čeká na svého strážce.</p>
+      <form id="characterForm">
+        <label class="field-label" for="characterName">JMÉNO HRDINY</label>
+        <input id="characterName" name="name" value="Poutník" minlength="3" maxlength="24" autocomplete="off" required>
+        <fieldset class="classes"><legend>POVOLÁNÍ</legend>
+          <label><input type="radio" name="classId" value="warrior" checked><span><svg><use href="#sword"/></svg><b>Strážce</b><small>Meč a zbroj</small></span></label>
+          <label><input type="radio" name="classId" value="ranger"><span><svg><use href="#bow"/></svg><b>Lovec</b><small>Luk a obratnost</small></span></label>
+          <label><input type="radio" name="classId" value="mystic"><span><svg><use href="#magic"/></svg><b>Mystik</b><small>Runová magie</small></span></label>
+        </fieldset>
+        <p id="classDescription" class="class-description"></p>
+        <fieldset class="modes"><legend>ZPŮSOB HRANÍ</legend><label><input type="radio" name="mode" value="offline" checked> Samostatné dobrodružství</label><label><input type="radio" name="mode" value="online"> Online svět</label></fieldset>
+        <div id="serverRow" hidden><label class="field-label" for="serverUrl">ADRESA HERNÍHO SERVERU</label><input id="serverUrl" type="url" placeholder="ws://127.0.0.1:8790/world"><p class="hint">Hráči na stejném serveru sdílejí svět. Server spustíš příkazem npm start.</p></div>
+        <button id="start" class="primary" type="submit">VSTOUPIT DO SVĚTA <span>→</span></button>
+        <p id="menuStatus" role="status"></p>
+        <button id="newCharacter" type="button" class="text-button" hidden>Vytvořit novou offline postavu</button>
+      </form>
+      <div class="menu-footer">OTEVŘENÝ 3D SVĚT <span>◆</span> FANTASY RPG · VÝVOJOVÁ VERZE</div>
     </div>
-  </header>
-  <aside class="mission">
-    <div class="eyebrow">KAPITOLA 01 / PRVNÍ NOC</div>
-    <h2 id="missionTitle">Dluhy nespí</h2>
-    <p id="missionText">Najdi Viktora před klubem Neon. Má pro tebe práci.</p>
-    <div class="objective"><span>◈</span><span id="objective">Dojdi k fialovému bodu</span><b id="distance"></b></div>
-    <div class="xpLine"><div class="xpTrack"><i id="xpFill"></i></div><span id="xpText">0 / 120 XP</span></div>
-    <div class="cargoLine">ZÁSILKA <b id="currentCargo">Bez zakázky</b></div>
-  </aside>
-  <div class="playerPanel" aria-label="Player menu">
-    <button id="playerMenuToggle" aria-expanded="false" aria-controls="playerActions">Player</button>
-    <div id="playerActions" class="playerActions hidden">
-      <button id="cityMapButton">Mapa města · M</button>
-      <button id="phone">Telefon · P</button>
-      <button id="inventoryButton">Inventář · I</button>
-      <button id="logButton">Log novinek</button>
-      <button id="scoreboardButton">Scoreboard · Tab</button>
-      <button id="contracts">Kontakty · J</button>
-      <button id="saveGame">Uložit · K</button>
-      <button id="sound">Zvuk · vypnuto</button>
-    </div>
-  </div>
-  <div id="location">ŽIŽKOV <span>23:47 · DÉŠŤ</span></div>
-  <div id="prompt"></div>
-  <div id="toast" role="status"></div>
-  <footer>
-    <span><kbd>W A S D</kbd> pohyb / řízení</span>
-    <span><kbd>SHIFT</kbd> sprint</span>
-    <span><kbd>SPACE</kbd> ruční brzda</span>
-    <span><kbd>E</kbd> interakce</span>
-    <span><kbd>F</kbd> nastoupit / vystoupit</span>
-    <span><kbd>P</kbd> telefon</span>
-    <span><kbd>I</kbd> inventář</span>
-    <span><kbd>J</kbd> zakázky</span>
-    <span><kbd>K</kbd> uložit</span>
-    <span><kbd>M</kbd> mapa</span>
-    <span><kbd>ESC</kbd> pauza</span>
-  </footer>
-  <div class="touch">
-    <button data-key="w">▲</button>
-    <div><button data-key="a">◀</button><button data-key="s">▼</button><button data-key="d">▶</button></div>
-    <button id="touchE">E</button>
-    <button id="touchF">F</button>
-    <button data-key="shift">BĚH</button>
-    <button data-key=" ">BRZDA</button>
-    <button id="touchMap">MAPA</button>
-  </div>
-  <section id="cityMapOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Mapa herního města">
-    <canvas id="cityMapCanvas" aria-label="Mapa ulic, čtvrtí a míst"></canvas>
-    <aside class="cityMapSidebar">
-      <div class="cityMapBrand"><span>LIB</span> Město <small>HERNÍ PRAHA</small></div>
-      <label class="cityMapSearch"><span>⌕</span><input id="cityMapSearch" type="search" placeholder="Hledat čtvrť, NPC nebo místo" aria-label="Hledat místo na mapě"></label>
-      <div id="cityMapFilters" class="cityMapFilters" aria-label="Kategorie míst"></div>
-      <div id="cityMapResults" class="cityMapResults" aria-live="polite"></div>
-      <article id="cityMapDetails" class="cityMapDetails hidden">
-        <small id="cityMapPlaceKind"></small><h2 id="cityMapPlaceName"></h2><p id="cityMapPlaceText"></p>
-        <button id="cityMapNavigate">➜ Trasa sem</button><button id="cityMapClearRoute" class="mapSecondary">Zrušit trasu</button>
-      </article>
-    </aside>
-    <button id="cityMapClose" class="cityMapClose" aria-label="Zavřít mapu">✕ <span>M / Esc</span></button>
-    <div class="cityMapControls"><button id="cityMapTheme" aria-label="Přepnout tmavou mapu">☀</button><button id="cityMapLocate" aria-label="Moje poloha">◎</button><button id="cityMapZoomIn" aria-label="Přiblížit mapu">+</button><button id="cityMapZoomOut" aria-label="Oddálit mapu">−</button><button id="cityMapFit" aria-label="Celé město">▧</button></div>
-    <div class="cityMapLegend"><i></i> Ty <b>●</b> Úkol / místo <span>Táhni mapu · kolečko pro zoom</span></div>
-    <div id="cityMapScale" class="cityMapScale"></div>
-    <div class="cityMapCredit">Life Is Bitch · herní plán Prahy</div>
+    <div class="scene-caption"><span>01 — ÚTOČIŠTĚ ÚSVITU</span><p>Za každým úsvitem<br>začíná nová legenda.</p></div>
   </section>
-  <div class="overlay" id="menu">
-    <div class="intro">
-      <div class="eyebrow">RABBIT HOLLOW PRESENTS</div>
-      <h1>LIFE<br><i>IS BITCH.</i></h1>
-      <p class="tagline">Každá ulice má svůj příběh.<br>Tenhle začíná na dně.</p>
-      <p>Jsi Adam. Dvacet dva, prázdná kapsa a dluh, který nepočká. V nočním městě rozhoduješ, komu věřit a kolik ze sebe obětovat.</p>
-      <label for="characterName">JMÉNO POSTAVY</label>
-      <input id="characterName" autocomplete="nickname" minlength="3" maxlength="40" placeholder="Tvoje jméno z ulice">
-      <p id="characterError" role="alert"></p>
-      <small id="characterIdentity"></small>
-      <button id="start">ZAČÍT NOC <span>↗</span></button>
-      <small>Hratelný prototyp · 14 příběhových úkolů · 24 lokálních questů · počasí Prahy · CZ</small>
-    </div>
-    <div class="introSide">
-      <span>01</span>
-      <h3>BETONOVÉ<br>SNY</h3>
-      <p>Chůze. Auta. Kontakty.<br>Rozhodnutí. Následky.</p>
-    </div>
-  </div>
-  <div class="overlay hidden" id="dialog">
-    <div class="dialogBox">
-      <div class="eyebrow" id="speaker"></div>
-      <h2 id="dialogTitle"></h2>
-      <p id="dialogText"></p>
-      <div id="choices"></div>
-    </div>
-  </div>
-  <div class="overlay hidden" id="scoreboard">
-    <div class="dialogBox scorePanel">
-      <div class="eyebrow">LIFE IS BITCH · TVOJE POSTAVA</div>
-      <h2>Scoreboard</h2>
-      <p>Lokální statistiky na tomto zařízení. Společný online žebříček bude dostupný s multiplayerem.</p>
-      <div class="scoreScroll">
-        <table>
-          <thead><tr><th>Jméno</th><th>ID hráče</th><th>Level</th><th>XP</th><th>Respekt</th><th>Hotovost</th></tr></thead>
-          <tbody><tr id="scoreboardRow"></tr></tbody>
-        </table>
-      </div>
-      <button id="closeScoreboard">Zavřít · Tab / Esc</button>
-    </div>
-  </div>
-  <script src="character-system.js"></script>
-  <script src="life-system.js?v=game-maps-1"></script>
-  <script src="game.js?v=capital-grant-2"></script>
-  <script src="city-map.js?v=game-maps-1"></script>
-  <script src="character-ui.js"></script>
-  <script src="account-ui.js"></script>
-  <div id="studioTag">Rabbithollow Code Studio™</div>
-  <div id="betaBadge" aria-label="Beta verze hry">BETA</div>
+
+  <main id="hud" hidden aria-label="Herní rozhraní">
+    <section class="hero-panel panel"><div class="level-seal" id="level">1</div><div class="hero-info"><strong id="heroName"></strong><small id="heroClass"></small><div class="meter hp"><i id="hpFill"></i><span id="hpText"></span></div><div class="meter mana"><i id="manaFill"></i><span id="manaText"></span></div></div></section>
+    <div class="top-center"><div class="brand">KRONIKY TRHLINY</div><div id="connection" class="connection">Samostatné dobrodružství</div><section id="targetPanel" class="target-panel panel" hidden><strong id="targetName"></strong><div class="meter hp"><i id="targetFill"></i><span id="targetText"></span></div></section></div>
+    <section class="world-panel"><div class="zone-heading"><strong id="zoneName">Útočiště úsvitu</strong><small id="zoneLevel">Bezpečná oblast</small></div><button id="minimapButton" class="minimap-shell" aria-label="Otevřít mapu světa"><canvas id="minimap" width="180" height="180"></canvas><span class="north">N</span></button><span id="coordinates" class="coordinates"></span><div class="quest-tracker"><div class="eyebrow">CESTA HRDINY</div><strong id="questName"></strong><p id="questText"></p><small id="questProgress"></small></div></section>
+    <section class="chat-panel" aria-label="Zprávy"><div id="chatLog" role="log" aria-live="polite"></div><form id="chatForm" hidden><label class="sr-only" for="chatInput">Zpráva hráčům</label><input id="chatInput" maxlength="160" placeholder="Zpráva do světa… Enter odešle"></form></section>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <div id="interaction" class="interaction" hidden><kbd>E</kbd><span id="interactionText"></span></div>
+    <div id="death" class="death" hidden><h2>Tvoje cesta nekončí</h2><p id="deathText"></p></div>
+    <section class="bottom-bar"><div class="resource-line"><span id="gold">120 zlatých</span><div class="stamina"><i id="staminaFill"></i></div><span id="saveStatus">Automatické ukládání</span></div><div class="hotbar panel">
+      <button id="attackButton" title="Útok · mezerník"><kbd>SPACE</kbd><svg><use href="#sword"/></svg><small>Útok</small></button>
+      <button id="skillButton" title="Schopnost · Q"><kbd>Q</kbd><svg><use href="#magic"/></svg><small id="skillName">Kruh oceli</small><span class="cooldown" id="skillCooldown"></span></button>
+      <button id="dashButton" title="Úskok · R"><kbd>R</kbd><svg><use href="#dash"/></svg><small>Úskok</small><span class="cooldown" id="dashCooldown"></span></button>
+      <button id="potionButton" title="Lektvar · 1"><kbd>1</kbd><svg><use href="#potion"/></svg><small id="potionCount">5 lektvarů</small><span class="cooldown" id="potionCooldown"></span></button>
+      <span class="bar-divider"></span>
+      <button id="inventoryButton" title="Inventář · I"><kbd>I</kbd><svg><use href="#bag"/></svg><small>Výbava</small></button>
+      <button id="questButton" title="Úkoly · J"><kbd>J</kbd><svg><use href="#quest-icon"/></svg><small>Úkoly</small></button>
+      <button id="mapButton" title="Mapa · M"><kbd>M</kbd><svg><use href="#map-icon"/></svg><small>Mapa</small></button>
+      <button id="pause" title="Nastavení · Esc"><kbd>ESC</kbd><span class="settings-icon">☷</span><small>Menu</small></button>
+    </div><div class="xp-track"><i id="xpFill"></i></div><div class="controls-hint">W A S D · pohyb <span>✦</span> pravé tlačítko · kamera <span>✦</span> kolečko · přiblížení <span>✦</span> Shift · běh</div></section>
+    <div id="touchPad" class="touch-pad" aria-label="Ovládání pohybu"><button data-move="w" aria-label="Dopředu">↑</button><button data-move="a" aria-label="Doleva">←</button><button data-move="s" aria-label="Dozadu">↓</button><button data-move="d" aria-label="Doprava">→</button><button id="touchInteract">E</button></div>
+  </main>
+  <dialog id="panel" class="dialog"><header><div><span class="eyebrow" id="panelEyebrow">KRONIKY TRHLINY</span><h2 id="panelTitle"></h2></div><button id="closePanel" class="close" aria-label="Zavřít">×</button></header><div id="panelBody"></div></dialog>
+  <script src="world.js"></script>
+  <script type="module" src="game.js"></script>
 </body>
 </html>
