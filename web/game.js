@@ -506,7 +506,7 @@ function createIncident(x,y,vehicles=[],cause='traffic'){
   arrangeIncidentVehicles(incident);
   for(const car of incident.vehicles){
     car.crashed=true;car.parked=true;car.velocity=0;car.trafficVelocity=0;car.crashCooldown=2.5;
-    if(car===player.car){player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
+    if(car===player.car){car.playerVehicle=true;player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
   }
   incidents.push(incident);dispatchEmergency(incident);
   if(distance(player,{x,y})<450)notify('Nehoda hlášena · jedou hasiči, policie a sanitka');
@@ -520,9 +520,29 @@ function ensureIncidentCrew(incident,service){
 }
 function finishIncident(incident){
   incident.resolved=true;
-  for(const car of incident.vehicles){car.crashed=false;car.speed=car.speed||60;car.parked=Boolean(car.ownedId)||car.speed===0;car.trafficVelocity=car.parked?0:car.speed;}
+  for(const car of incident.vehicles){
+    car.crashed=false;
+    // Havarovaná AI auta odtahujeme ze seznamu provozu. Předchozí logika je
+    // po zásahu znovu rozjela přímo ze scénického rozmístění nehody, často
+    // mimo jízdní pruh nebo napříč křižovatkou, čímž vznikala druhá zácpa.
+    if(car.emergency){
+      car.parked=false;
+      car.trafficVelocity=car.speed;
+      continue;
+    }
+    if(car.ownedId||car.playerVehicle){
+      car.velocity=0;
+      car.speed=0;
+      car.trafficVelocity=0;
+      car.parked=true;
+      car.playerVehicle=false;
+      continue;
+    }
+    const index=cars.indexOf(car);
+    if(index!==-1)cars.splice(index,1);
+  }
   for(const vehicle of Object.values(incident.assigned)){vehicle.duty='return';vehicle.targetIncident=null;vehicle.trafficVelocity=vehicle.speed;}
-  if(distance(player,incident)<450)notify('Zásah ukončen · nehoda odklizena');
+  if(distance(player,incident)<450)notify('Zásah ukončen · poškozená auta odtažena');
 }
 function moveEmergencyVehicle(vehicle,target,dt){
   const angle=Math.atan2(target.y-vehicle.y,target.x-vehicle.x),speed=vehicle.speed*(vehicle.duty==='respond'?1.15:.75);
