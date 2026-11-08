@@ -2,23 +2,51 @@
 
 Hratelný prototyp pouliční hry v češtině. Výchozí vizuál je noční top-down město ve stylu GTA2: auta, pěší, MHD, levelování, inventář, vzdělání, policejní test a průřez interiéry. Zdroj hry je ve `web/`.
 
-## Android
+## 🚀 Spuštění hry v prohlížeči
 
-Android 8.0+, orientace na šířku, dotykové ovládání, offline obsah a uložený postup. Používá systémový Android WebView. Projekt vychází z webového prototypu, nejde zatím o nativní AA hru.
+### Nejrychlejší varianta – Python
 
-GitHub Actions → Android APK and AAB → úspěšný běh → artifact `life-is-bitch-android`.
+1. Nainstaluj Python 3.
+2. Otevři terminál v kořenové složce repozitáře.
+3. Spusť:
 
-- `app-debug.apk`: přímo instalovatelná testovací verze s debug podpisem.
-- `app-release.aab`: nepodepsaný bundle, před Google Play vyžaduje vlastní upload klíč a release podpis. Debug klíč nepoužívat pro vydání.
+```powershell
+cd web
+python -m http.server 8080
+```
 
-Lokálně: Android Studio otevřít složku `android`, nainstalovat SDK 35, Build → Generate Signed App Bundle / APK. CLI s JDK 17, SDK 35 a Gradle 8.9: `cd android` a `gradle :app:assembleDebug :app:bundleRelease`.
+4. V prohlížeči otevři **http://localhost:8080**.
 
-Web: spustit HTTP server ve `web/`, například `python -m http.server 8080`.
+Pokud příkaz `python` ve Windows nefunguje, vyzkoušej `py -m http.server 8080`. Server ukončíš klávesami `Ctrl+C`.
+
+Alternativně můžeš použít Node.js:
+
+```bash
+npx http-server web -p 8080
+```
+
+### Android
+
+Android 8.0+, orientace na šířku, dotykové ovládání, offline obsah a uložený postup. Aplikace používá systémový Android WebView; nejde zatím o nativní AAA hru.
+
+Testovací APK lze stáhnout z úspěšného GitHub Actions běhu **Android APK and AAB** jako artifact `life-is-bitch-android`. Soubor `app-debug.apk` je testovací APK s debug podpisem. `app-release.aab` je nepodepsaný bundle a před vydáním na Google Play vyžaduje vlastní upload klíč a release podpis.
+
+Lokální sestavení vyžaduje Android Studio nebo JDK 17, Android SDK 35 a Gradle 8.9. V adresáři `android` lze spustit:
+
+```bash
+gradle :app:assembleDebug :app:bundleRelease
+```
 
 ## Ovládání
 
-Šipky na displeji: pohyb a řízení. E: dveře, kontakty, MHD a schody. F: auto. I: inventář. Player menu obsahuje mapu, telefon, inventář, log novinek, kontakty a uložení. Tlačítka sprintu, brzdy a mapy jsou dole. Pozastavení přes horní tlačítko nebo Android Zpět.
+- Šipky na displeji nebo WASD: pohyb a řízení.
+- E: dveře, kontakty, MHD a schody.
+- F: nastoupit do auta / vystoupit.
+- I: inventář.
+- P: telefon.
+- M: mapa.
+- Uložení: nabídka Player.
 
 ## Stav ověření
 
-Herní logika prošla testy prototypu včetně Zahradního Města, 24 lokálních questů, MHD pasažéra, policejního 20otázkového testu, inventáře, samostudia, střední školy a lepších prací. Android sestavení potvrzuje pouze zelený Actions běh; výkon na skutečném telefonu vyžaduje samostatné ověření.
+Herní logika má testy prototypu včetně Zahradního Města, questů, MHD, policejního testu, inventáře a samostudia. Úspěšný Android Actions build potvrzuje sestavení, nikoli výkon na každém fyzickém telefonu.
