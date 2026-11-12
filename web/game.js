@@ -368,8 +368,9 @@ for(let i=0;i<16;i++)people.push({x:867+(i%4)*400,y:835+Math.floor(i/4)*400,axis
 for(let i=0;i<6;i++)cars.push({x:835+(i%3)*400,y:835+Math.floor(i/3)*400,angle:0,axis:true,speed:60,color:'#e7eef2',parked:false,police:true});
 const trafficLights=[];
 for(let row=minCell;row<gridSize;row++)for(let col=minCell;col<gridSize;col++){
-  if((row+col)%2!==0)continue;
-  trafficLights.push({row,col,x:col*block+35,y:row*block+35,offset:(row*3.7+col*5.1)%20});
+  // Každá skutečná křižovatka musí mít signál; vynechané ob křižovatce
+  // dovolovaly kolmým proudům projet současně bez řízení přednosti.
+  trafficLights.push({row,col,x:col*block+35,y:row*block+35,offset:((row*3.7+col*5.1)%20+20)%20});
 }
 const trafficLightMap=new Map(trafficLights.map(light=>[light.row+':'+light.col,light]));
 function trafficState(light,clock=time){
@@ -403,6 +404,19 @@ function trafficBlocker(car){
 }
 function vehicleAt(car,x,y,range=32){
   return cars.find(other=>other!==car&&!other.transit&&(!other.parked||other.crashed||other.emergency)&&Math.hypot(other.x-x,other.y-y)<range)||null;
+}
+// Pro autonomní provoz kontrolujeme pouze vozidla ve stejném jízdním pruhu.
+// Původní vehicleAt považovalo auta na kolmých ramenech křižovatky za překážku,
+// i když měla podle semaforu bezpečně projet jiným směrem.
+function trafficVehicleAt(car,x,y,range=30){
+  return cars.find(other=>
+    other!==car&&
+    !other.transit&&
+    other.axis===car.axis&&
+    (!other.parked||other.crashed||other.emergency)&&
+    (car.axis?Math.abs(other.y-y)<18:Math.abs(other.x-x)<18)&&
+    Math.hypot(other.x-x,other.y-y)<range
+  )||null;
 }
 const incidents=[],emergencyVehicles=[];
 let incidentId=0;
@@ -492,7 +506,7 @@ function createIncident(x,y,vehicles=[],cause='traffic'){
   arrangeIncidentVehicles(incident);
   for(const car of incident.vehicles){
     car.crashed=true;car.parked=true;car.velocity=0;car.trafficVelocity=0;car.crashCooldown=2.5;
-    if(car===player.car){player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
+    if(car===player.car){car.playerVehicle=true;player.car=null;player.health=Math.max(15,player.health-18);player.x=x+34;player.y=y+20;player.heat=Math.min(5,player.heat+.4);}
   }
   incidents.push(incident);dispatchEmergency(incident);
   if(distance(player,{x,y})<450)notify('Nehoda hlášena · jedou hasiči, policie a sanitka');
@@ -506,9 +520,29 @@ function ensureIncidentCrew(incident,service){
 }
 function finishIncident(incident){
   incident.resolved=true;
-  for(const car of incident.vehicles){car.crashed=false;car.speed=car.speed||60;car.parked=Boolean(car.ownedId)||car.speed===0;car.trafficVelocity=car.parked?0:car.speed;}
+  for(const car of incident.vehicles){
+    car.crashed=false;
+    // Havarovaná AI auta odtahujeme ze seznamu provozu. Předchozí logika je
+    // po zásahu znovu rozjela přímo ze scénického rozmístění nehody, často
+    // mimo jízdní pruh nebo napříč křižovatkou, čímž vznikala druhá zácpa.
+    if(car.emergency){
+      car.parked=false;
+      car.trafficVelocity=car.speed;
+      continue;
+    }
+    if(car.ownedId||car.playerVehicle){
+      car.velocity=0;
+      car.speed=0;
+      car.trafficVelocity=0;
+      car.parked=true;
+      car.playerVehicle=false;
+      continue;
+    }
+    const index=cars.indexOf(car);
+    if(index!==-1)cars.splice(index,1);
+  }
   for(const vehicle of Object.values(incident.assigned)){vehicle.duty='return';vehicle.targetIncident=null;vehicle.trafficVelocity=vehicle.speed;}
-  if(distance(player,incident)<450)notify('Zásah ukončen · nehoda odklizena');
+  if(distance(player,incident)<450)notify('Zásah ukončen · poškozená auta odtažena');
 }
 function moveEmergencyVehicle(vehicle,target,dt){
   const angle=Math.atan2(target.y-vehicle.y,target.x-vehicle.x),speed=vehicle.speed*(vehicle.duty==='respond'?1.15:.75);
@@ -786,7 +820,7 @@ function updateTrafficCar(car,dt){
   else car.trafficVelocity=Math.max(desired,car.trafficVelocity-accel*dt);
   const speed=car.trafficVelocity,angle=car.axis?0:Math.PI/2,nx=wrapWorld(car.x+Math.cos(angle)*speed*dt),ny=wrapWorld(car.y+Math.sin(angle)*speed*dt);
   car.angle=angle;
-  const hit=vehicleAt(car,nx,ny,30);
+  const hit=trafficVehicleAt(car,nx,ny,30);
   if(hit){
     if(speed>45||((hit.trafficVelocity||hit.velocity||hit.speed||0)>45))createIncident((car.x+hit.x)/2,(car.y+hit.y)/2,[car,hit],'traffic-crash');
     car.trafficVelocity=0;return;
