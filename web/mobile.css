@@ -1,0 +1,525 @@
+/* RabbitHollow · Mobile UI pass
+   Additive overrides: desktop layout and game logic remain untouched. */
+:root {
+  --mobile-ink: #08090e;
+  --mobile-panel: rgba(12, 13, 21, .94);
+  --mobile-panel-soft: rgba(12, 13, 21, .82);
+  --mobile-orange: #d7441d;
+  --mobile-pink: #e83b91;
+  --mobile-purple: #9c72c9;
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 800px), (pointer: coarse) {
+  html, body {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    touch-action: manipulation;
+  }
+
+  #game, #world3d {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  button {
+    min-height: 46px;
+    border-radius: 10px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  button:active {
+    transform: translateY(1px) scale(.98);
+    filter: brightness(1.18);
+  }
+
+  /* Start screen: isolated from the live HUD, scrollable on short phones. */
+  body:has(#menu:not(.hidden)) header,
+  body:has(#menu:not(.hidden)) .mission,
+  body:has(#menu:not(.hidden)) #location,
+  body:has(#menu:not(.hidden)) .playerPanel,
+  body:has(#menu:not(.hidden)) .touch,
+  body:has(#menu:not(.hidden)) #prompt,
+  body:has(#menu:not(.hidden)) #toast {
+    display: none !important;
+  }
+
+  #menu.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: calc(24px + var(--mobile-safe-top)) 22px calc(28px + var(--mobile-safe-bottom));
+    background:
+      radial-gradient(ellipse at 90% 8%, rgba(125, 53, 34, .16), transparent 42%),
+      linear-gradient(160deg, #0b0c12 0%, #08090e 55%, #100a12 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #menu .intro {
+    width: min(100%, 520px);
+    margin: auto;
+    padding: 10px 0;
+  }
+
+  #menu .eyebrow {
+    color: var(--mobile-orange);
+    font-size: 10px;
+    line-height: 1.5;
+    letter-spacing: .2em;
+    overflow-wrap: anywhere;
+  }
+
+  #menu .intro h1 {
+    margin: clamp(24px, 6vh, 48px) 0 24px;
+    font-size: clamp(64px, 17vw, 100px);
+    line-height: .82;
+    letter-spacing: -.055em;
+    color: #e14a20;
+    text-wrap: balance;
+  }
+
+  #menu .intro h1 i { color: #e14a20; }
+
+  #menu .intro .tagline {
+    margin: 0 0 22px;
+    color: #e7d9d2;
+    font-size: clamp(18px, 5vw, 22px);
+    line-height: 1.45;
+  }
+
+  #menu .intro > p:not(.tagline) {
+    max-width: 48ch;
+    margin: 0 0 24px;
+    color: #c2b8b5;
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  #menu .intro label {
+    display: block;
+    margin: 20px 0 9px;
+    color: #d9c6dc;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .13em;
+  }
+
+  #characterName {
+    display: block;
+    width: 100%;
+    min-height: 58px;
+    padding: 0 17px;
+    border: 1px solid #9167b9;
+    border-radius: 13px;
+    outline: none;
+    background: #151923;
+    color: #f4eef4;
+    font-size: 16px;
+  }
+
+  #characterName:focus {
+    border-color: #d49bff;
+    box-shadow: 0 0 0 3px rgba(156, 114, 201, .2);
+  }
+
+  #characterIdentity {
+    display: block;
+    margin: 12px 0 20px;
+    color: #8dcbd2;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  #menu .intro button,
+  #menu #accountButton {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 58px;
+    margin: 12px 0;
+    padding: 0 18px;
+    border: 1px solid rgba(232, 59, 145, .4);
+    border-radius: 12px;
+    background: linear-gradient(115deg, rgba(232, 59, 145, .13), rgba(156, 114, 201, .08));
+    color: #f08abd;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .035em;
+    text-align: left;
+  }
+
+  #menu .intro button#start {
+    border-color: rgba(215, 68, 29, .65);
+    background: linear-gradient(110deg, #a92d16, #d7441d);
+    color: #fff4ed;
+    box-shadow: 0 10px 30px rgba(160, 47, 24, .2);
+  }
+
+  #menu .intro > small:last-child {
+    display: block;
+    margin-top: 20px;
+    color: #817b83;
+    font-size: 10px;
+    line-height: 1.7;
+  }
+
+  /* In-game HUD: compact readable cards instead of text floating over the map. */
+  header {
+    top: calc(8px + var(--mobile-safe-top));
+    left: 10px;
+    right: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+    max-width: 92px;
+    font-size: 19px;
+    line-height: .95;
+    letter-spacing: -.04em;
+    color: var(--mobile-orange);
+  }
+
+  .brand span { display: block; color: var(--mobile-orange); }
+  .brand small {
+    margin-top: 5px;
+    font-size: 7px;
+    line-height: 1.35;
+    letter-spacing: .12em;
+  }
+
+  .stats {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    padding: 7px;
+    border: 1px solid rgba(215, 68, 29, .28);
+    border-radius: 12px;
+    background: rgba(8, 9, 14, .82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: auto;
+  }
+
+  .stats span {
+    min-width: 0;
+    color: #b8a9a5;
+    font-size: 8px;
+    line-height: 1.2;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+
+  .stats b {
+    margin-top: 3px;
+    color: #f0784e;
+    font-size: clamp(11px, 3vw, 14px);
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  #heat { letter-spacing: .05em; }
+
+  #pause {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 42px;
+    min-height: 40px;
+    margin-top: 7px;
+    border: 1px solid rgba(232, 59, 145, .5);
+    border-radius: 10px;
+    background: rgba(12, 13, 21, .88);
+    color: #f078b4;
+    pointer-events: auto;
+  }
+
+  .mission {
+    top: calc(112px + var(--mobile-safe-top));
+    left: 10px;
+    width: min(230px, 59vw);
+    max-height: 32dvh;
+    overflow: auto;
+    padding: 11px 12px;
+    border: 1px solid rgba(215, 68, 29, .25);
+    border-left: 2px solid var(--mobile-orange);
+    border-radius: 0 12px 12px 0;
+    background: rgba(8, 9, 14, .76);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+  }
+
+  .mission .eyebrow { font-size: 8px; letter-spacing: .12em; }
+  .mission h2 { margin: 5px 0 6px; color: #f0784e; font-size: 17px; }
+  .mission p { margin: 0 0 8px; color: #e0d1cc; font-size: 11px; line-height: 1.45; }
+  .objective { gap: 6px; padding-top: 7px; font-size: 10px; }
+  .objective > span:first-child { font-size: 15px; }
+  .objective b { font-size: 10px; }
+  .xpLine { margin-top: 8px; font-size: 10px; }
+  .xpTrack { height: 5px; border-radius: 9px; overflow: hidden; }
+  .cargoLine { margin: 8px 0 0; font-size: 8px; }
+  .cargoLine b { margin-top: 3px; font-size: 11px; }
+
+  .playerPanel {
+    top: auto;
+    bottom: calc(146px + var(--mobile-safe-bottom));
+    left: 10px;
+    width: 148px;
+    max-width: 42vw;
+  }
+
+  #playerMenuToggle {
+    min-height: 44px;
+    padding: 8px 11px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  .playerActions {
+    max-height: 36dvh;
+    overflow: auto;
+    padding: 7px;
+    gap: 5px;
+    border-radius: 11px;
+    backdrop-filter: blur(12px);
+  }
+
+  .playerActions button {
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  #location {
+    left: 10px;
+    bottom: calc(112px + var(--mobile-safe-bottom));
+    padding: 7px 10px;
+    border: 1px solid rgba(215, 68, 29, .24);
+    border-radius: 9px;
+    background: rgba(8, 9, 14, .72);
+    color: #f0784e;
+    font-size: 17px;
+    letter-spacing: .12em;
+  }
+
+  #location span { margin-top: 3px; color: #c6b5b1; font-size: 9px; letter-spacing: .08em; }
+
+  /* Thumb controls: separated directional pad and action keys, generous hit areas. */
+  .touch {
+    position: fixed;
+    z-index: 12;
+    left: 10px;
+    right: auto;
+    bottom: calc(10px + var(--mobile-safe-bottom));
+    display: grid;
+    grid-template-columns: repeat(4, 48px);
+    grid-template-rows: repeat(2, 48px);
+    gap: 6px;
+    width: max-content;
+    max-width: calc(100vw - 20px);
+    padding: 7px;
+    border: 1px solid rgba(215, 68, 29, .28);
+    border-radius: 15px;
+    background: rgba(8, 9, 14, .82);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .32);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    touch-action: none;
+  }
+
+  .touch button {
+    min-width: 0;
+    min-height: 0;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 1px solid rgba(215, 68, 29, .35);
+    border-radius: 11px;
+    background: rgba(28, 25, 31, .94);
+    color: #f0784e;
+    font-size: 13px;
+    font-weight: 800;
+    touch-action: none;
+  }
+
+  .touch > button:first-child { grid-column: 1 / 3; grid-row: 1; justify-self: center; }
+  .touch > div {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(3, 48px);
+    gap: 6px;
+  }
+  .touch > div button { width: 48px; }
+  #touchE { grid-column: 3; grid-row: 1; }
+  #touchF { grid-column: 4; grid-row: 1; }
+  .touch button[data-key="shift"] { grid-column: 3; grid-row: 2; font-size: 10px; }
+  .touch button[data-key=" "] { grid-column: 4; grid-row: 2; font-size: 10px; }
+  #touchMap {
+    position: fixed;
+    right: 10px;
+    bottom: calc(10px + var(--mobile-safe-bottom));
+    width: 48px;
+    height: 48px;
+    border-color: rgba(156, 114, 201, .65);
+    color: #c9a6ee;
+    background: rgba(22, 15, 29, .94);
+  }
+
+  #prompt {
+    position: fixed;
+    bottom: calc(124px + var(--mobile-safe-bottom));
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 10px 13px;
+    border: 1px solid rgba(215, 68, 29, .45);
+    border-radius: 10px;
+    background: rgba(8, 9, 14, .92);
+    color: #ffe4d8;
+    font-size: 12px;
+    text-align: center;
+    white-space: normal;
+  }
+
+  #toast {
+    top: calc(104px + var(--mobile-safe-top));
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 10px 13px;
+    border: 1px solid rgba(215, 68, 29, .35);
+    border-radius: 10px;
+    background: rgba(8, 9, 14, .94);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  #dialog.overlay, #scoreboard.overlay {
+    position: fixed;
+    z-index: 25;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: calc(14px + var(--mobile-safe-top)) 12px calc(14px + var(--mobile-safe-bottom));
+    background: rgba(3, 4, 8, .86);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+  }
+
+  .dialogBox {
+    width: min(100%, 560px);
+    max-height: calc(100dvh - 28px - var(--mobile-safe-top) - var(--mobile-safe-bottom));
+    overflow: auto;
+    padding: 19px;
+    border: 1px solid rgba(215, 68, 29, .28);
+    border-top: 2px solid var(--mobile-orange);
+    border-radius: 14px;
+    background: #101018;
+  }
+
+  .dialogBox h2 { font-size: 21px; }
+  .dialogBox p { font-size: 13px; line-height: 1.65; }
+  .dialogBox button { min-height: 46px; border-radius: 9px; }
+
+  #betaBadge {
+    top: auto;
+    bottom: calc(74px + var(--mobile-safe-bottom));
+    left: 10px;
+    z-index: 11;
+  }
+
+  #studioTag {
+    right: 8px;
+    bottom: calc(68px + var(--mobile-safe-bottom));
+    z-index: 11;
+    font-size: 8px;
+  }
+
+  #cityMapOverlay {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    overflow: auto;
+    padding: calc(54px + var(--mobile-safe-top)) 12px calc(16px + var(--mobile-safe-bottom));
+    background: #08090e;
+  }
+
+  #cityMapOverlay #cityMapCanvas {
+    position: relative;
+    width: 100%;
+    height: min(42dvh, 340px);
+    border: 1px solid rgba(215, 68, 29, .25);
+    border-radius: 12px;
+  }
+
+  .cityMapSidebar {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    margin-top: 12px;
+  }
+
+  .cityMapClose { position: fixed; top: calc(8px + var(--mobile-safe-top)); right: 10px; z-index: 42; }
+  .cityMapControls { position: fixed; top: calc(8px + var(--mobile-safe-top)); left: 10px; z-index: 42; }
+  .cityMapLegend { position: relative; margin-top: 10px; }
+}
+
+@media (max-width: 390px) {
+  .brand { max-width: 76px; font-size: 16px; }
+  .stats { gap: 4px; padding: 6px; }
+  .stats span { font-size: 7px; }
+  .stats b { font-size: 11px; }
+  .mission { width: min(205px, 56vw); }
+  .touch { grid-template-columns: repeat(4, 44px); grid-template-rows: repeat(2, 44px); gap: 5px; padding: 6px; }
+  .touch button, .touch > div button { width: 44px; height: 44px; }
+  .touch > div { grid-template-columns: repeat(3, 44px); gap: 5px; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  #menu.overlay { align-items: flex-start; padding-top: calc(12px + var(--mobile-safe-top)); }
+  #menu .intro { max-width: 680px; }
+  #menu .intro h1 { margin: 12px 0; font-size: clamp(48px, 11vh, 70px); }
+  #menu .intro .tagline { margin-bottom: 10px; font-size: 16px; }
+  #menu .intro > p:not(.tagline) { margin-bottom: 12px; font-size: 12px; }
+  #menu .intro label { margin-top: 10px; }
+  #menu .intro button, #menu #accountButton { min-height: 46px; margin: 7px 0; }
+  .mission { top: calc(82px + var(--mobile-safe-top)); max-height: 38dvh; }
+  .playerPanel { bottom: calc(10px + var(--mobile-safe-bottom)); left: 50%; transform: translateX(-50%); width: 132px; }
+  #location { bottom: calc(10px + var(--mobile-safe-bottom)); }
+  .touch { left: 10px; bottom: calc(10px + var(--mobile-safe-bottom)); }
+  #touchMap { right: 10px; bottom: calc(10px + var(--mobile-safe-bottom)); }
+}
